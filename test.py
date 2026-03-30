@@ -1,0 +1,640 @@
+"""
+test.py — 3-Phase Human-in-the-Loop LangGraph Travel Concierge
+================================================================
+Phase 1 → flight_agent (REAL)  → interrupt
+Phase 2 → hotel_agent (REAL) + weather_agent + news_agent (dummy parallel) → interrupt
+Phase 3 → restaurant_agent → itinerary_agent  (sequential)
+"""
+
+from __future__ import annotations
+from typing import TypedDict, List, Dict, Optional, Annotated
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.constants import Send
+from langchain_cohere import ChatCohere
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+import json, os, requests
+from datetime import datetime
+
+load_dotenv()
+
+# ──────────────────────────────────────────────────────────────────
+# PYDANTIC SCHEMAS
+# ──────────────────────────────────────────────────────────────────
+class TripDetails(BaseModel):
+    origin: str = Field(description="City they are leaving from.")
+    destination: str = Field(description="City they are traveling to.")
+    start_date: str = Field(description="YYYY-MM-DD")
+    end_date: str = Field(description="YYYY-MM-DD")
+    number_of_travelers: int = Field(default=1)
+    total_budget: float = Field(default=0.0)
+
+class FlightTask(BaseModel):
+    seat_class: Optional[str] = Field(default="economy")
+    preferred_airline: Optional[str] = None
+    date_of_booking: str
+    date_of_return: str
+    time_preference: Optional[str] = Field(default="Any time")
+
+class TrainTask(BaseModel):
+    train_type: Optional[str] = Field(default="standard")
+    seat_class: Optional[str] = Field(default="standard")
+    date_of_booking: str
+    date_of_return: str
+    time_preference: Optional[str] = Field(default="Any time")
+
+
+class HotelTask(BaseModel):
+    vibe_preference: Optional[str] = Field(default="standard"
+    )
+    room_type: Optional[str] = None
+    date_of_bookings: List[str] = Field(default_factory=list)
+
+class RestaurantTask(BaseModel):
+    cuisine_preference: Optional[str] = Field(default="local")
+    price_tier: Optional[str] = Field(default="medium")
+
+class WeatherTask(BaseModel):
+    preferred_units: str = Field(default="celsius")
+
+class NewsTask(BaseModel):
+    interests: List[str] = Field(default_factory=lambda: ["events"])
+
+class ItineraryTask(BaseModel):
+    pace: Optional[str] = Field(default="moderate")
+    activity_vibes: List[str] = Field(default_factory=lambda: ["tourist highlights"])
+
+class RoadTask(BaseModel):
+    needs_rental: bool = False
+    route_preference: Optional[str] = Field(default="fastest")
+
+class OrchestratorPlan(BaseModel):
+    trip_details: TripDetails
+    required_agents: List[str]
+    flight_task: Optional[FlightTask] = None
+    train_task: Optional[TrainTask] = None
+    road_task: Optional[RoadTask] = None
+    hotel_task: Optional[HotelTask] = None
+    restaurant_task: Optional[RestaurantTask] = None
+    weather_task: Optional[WeatherTask] = None
+    news_task: Optional[NewsTask] = None
+    itinerary_task: Optional[ItineraryTask] = None
+
+
+class SelectedFlight(BaseModel):
+    airline: str
+    departure_time: str
+    arrival_time: str
+    price: float
+    timing_notes: str
+    reasoning: str
+
+class FlightSelection(BaseModel):
+    best_flights: List[SelectedFlight]
+
+
+class SelectedHotel(BaseModel):
+    hotel_name: str
+    rating: float
+    total_price: float
+    vibe_match_reasoning: str
+
+class HotelSelection(BaseModel):
+    best_hotels: List[SelectedHotel]
+
+
+# ──────────────────────────────────────────────────────────────────
+# STATE
+# ──────────────────────────────────────────────────────────────────
+def _merge(a: Dict, b: Dict) -> Dict:
+    out = dict(a or {})
+    for k, v in (b or {}).items():
+        if k in out and isinstance(out[k], list) and isinstance(v, list):
+            out[k] = out[k] + v
+        else:
+            out[k] = v
+    return out
+
+class TripState(TypedDict):
+    user_request:    str
+    trip_details:    dict
+    required_agents: List[str]
+    agent_tasks:     Dict[str, dict]
+    scraped_data:    Annotated[Dict[str, list], _merge]
+    human_feedback:  str
+    phase1_approved: bool
+    phase2_approved: bool
+    final_itinerary: str
+    status_log:      Annotated[List[str], operator.add]   # streaming log
+
+import operator  # needed for the Annotated reducer above
+
+
+# ──────────────────────────────────────────────────────────────────
+# HELPER — log helper
+# ──────────────────────────────────────────────────────────────────
+def _log(msg: str) -> dict:
+    print(msg)
+    return {"status_log": [msg]}
+
+
+# ──────────────────────────────────────────────────────────────────
+# ORCHESTRATOR
+# ──────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────
+# ORCHESTRATOR
+# ──────────────────────────────────────────────────────────────────
+def orchestrator_node(state: TripState) -> dict:
+    msg = "🧠 Orchestrator: Parsing request & building execution plan..."
+    print(msg)
+
+    llm = ChatCohere(model="command-r-08-2024", temperature=0)
+    structured = llm.with_structured_output(OrchestratorPlan)
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    # Grab the trip details passed in during graph invocation
+    trip = state.get("trip_details", {})
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", f"""You are the master Orchestrator for an AI Travel Concierge.
+Today's date is {today}.
+
+The user has already provided the following trip details:
+- Origin: {{origin}}
+- Destination: {{destination}}
+- Dates: {{start_date}} to {{end_date}}
+- Travelers: {{number_of_travelers}}
+- Budget: ${{total_budget}}
+
+Your job is to decide which agents to activate based on their prompt:
+[flight_agent, train_agent, road_agent, hotel_agent, restaurant_agent, weather_agent, news_agent, itinerary_agent]
+
+Rules:
+- Always include: itinerary_agent, hotel_agent, weather_agent, news_agent
+- If user says "by flight" → activate flight_agent
+- If user mentions something like food/dining/eating/meal → activate restaurant_agent
+- DO NOT over-provision. If they are driving, do not call the flight agent.
+- Fill out the specific tasks (preferences) ONLY for the agents you are activating."""),
+        ("human", "User Request: {user_request}, {trip_details}")
+    ])
+
+    try:
+        # Pass the state variables directly into the prompt context
+        plan: OrchestratorPlan = (prompt | structured).invoke({
+            "user_request": state.get("user_request", ""),
+            "origin": trip.get("origin", "Unknown"),
+            "destination": trip.get("destination", "Unknown"),
+            "start_date": trip.get("start_date", "Unknown"),
+            "end_date": trip.get("end_date", "Unknown"),
+            "number_of_travelers": trip.get("number_of_travelers", 1),
+            "total_budget": trip.get("total_budget", 0)
+        })
+    except Exception as e:
+        print(f"❌ Orchestrator LLM error: {e}")
+        # Fallback plan
+        return {
+            "required_agents":  ["flight_agent", "hotel_agent", "weather_agent", "news_agent", "restaurant_agent", "itinerary_agent"],
+            "agent_tasks":      {"flight_agent": {}, "hotel_agent": {}, "weather_agent": {}, "news_agent": {}, "restaurant_agent": {}, "itinerary_agent": {}},
+            "phase1_approved":  False,
+            "phase2_approved":  False,
+            "status_log":       [msg, f"❌ Fallback activated due to error: {e}"],
+        }
+
+    required = list(plan.required_agents)
+    for must in ["itinerary_agent", "hotel_agent", "weather_agent", "news_agent"]:
+        if must not in required:
+            required.append(must)
+
+    print(f"🔀 Activated agents: {required}")
+
+    task_map = {
+        "flight_agent":     plan.flight_task,
+        "train_agent":      plan.train_task,
+        "road_agent":       plan.road_task,
+        "hotel_agent":      plan.hotel_task,
+        "restaurant_agent": plan.restaurant_task,
+        "weather_agent":    plan.weather_task,
+        "news_agent":       plan.news_task,
+        "itinerary_agent":  plan.itinerary_task,
+    }
+    
+    agent_tasks = {n: (t.dict(exclude_none=True) if t else {}) for n, t in task_map.items() if n in required}
+
+    return {
+        # Note: We don't return "trip_details" here anymore because it's already in the global state!
+        "required_agents":  required,
+        "agent_tasks":      agent_tasks,
+        "phase1_approved":  False,
+        "phase2_approved":  False,
+        "status_log":       [msg, f"✅ Plan built. Agents: {required}"],
+    }
+
+
+# ──────────────────────────────────────────────────────────────────
+# PHASE 1 — FLIGHT AGENT (REAL)
+# ──────────────────────────────────────────────────────────────────
+def flight_agent(state: dict) -> dict:
+    logs = ["✈️ Flight Agent: Starting SerpApi Google Flights search..."]
+    print(logs[0])
+
+    trip  = state.get("trip_details", {})
+    task  = state.get("agent_tasks", {} ).get("flight_agent", {})
+    origin_city     = trip.get("origin", "Unknown")
+    dest_city       = trip.get("destination", "Unknown")
+    start_date      = trip.get("start_date")
+    end_date        = trip.get("end_date")
+    time_preference = task.get("time_preference", "Any time")
+
+    llm = ChatCohere(model="command-r-08-2024", temperature=0)
+    serpapi_key = os.getenv("SERPAPI_KEY")
+
+    # IATA codes
+    try:
+        iata_p = ChatPromptTemplate.from_template(
+            "Respond with ONLY the 3-letter uppercase IATA airport code for {city}. No explanation."
+        )
+        origin_iata = (iata_p | llm).invoke({"city": origin_city}).content.strip().upper()[:3]
+        dest_iata   = (iata_p | llm).invoke({"city": dest_city}).content.strip().upper()[:3]
+    except Exception as e:
+        logs.append(f"❌ IATA lookup failed: {e}")
+        return {"scraped_data": {"flights": [{"error": str(e)}]}, "status_log": logs}
+
+    logs.append(f"✈️ Route: {origin_iata} → {dest_iata} | Pref: {time_preference}")
+    print(logs[-1])
+
+    # SerpApi
+    try:
+        is_rt = bool(end_date)
+        params = {
+            "engine":        "google_flights",
+            "departure_id":  origin_iata,
+            "arrival_id":    dest_iata,
+            "outbound_date": start_date,
+            "currency":      "USD",
+            "hl":            "en",
+            "api_key":       serpapi_key,
+            "type":          "1" if is_rt else "2",
+        }
+        if is_rt:
+            params["return_date"] = end_date
+        resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
+        resp.raise_for_status()
+        raw = resp.json().get("best_flights", []) or resp.json().get("other_flights", [])
+    except Exception as e:
+        logs.append(f"❌ Flight API error: {e}")
+        print(logs[-1])
+        return {"scraped_data": {"flights": [{"error": str(e)}]}, "status_log": logs}
+
+    condensed = []
+    for i, f in enumerate(raw[:20]):
+        try:
+            legs = f.get("flights", [])
+            if not legs: continue
+            condensed.append({
+                "option_id":      i + 1,
+                "airline":        legs[0].get("airline", "Unknown"),
+                "departure_time": legs[0].get("departure_airport", {}).get("time", "?"),
+                "arrival_time":   legs[-1].get("arrival_airport", {}).get("time", "?"),
+                "price_usd":      f.get("price", 0),
+                "layovers":       len(legs) - 1,
+            })
+        except Exception:
+            continue
+
+    if not condensed:
+        msg = f"No flights found {origin_iata}→{dest_iata} on {start_date}"
+        logs.append(f"⚠️ {msg}")
+        return {"scraped_data": {"flights": [{"error": msg}]}, "status_log": logs}
+
+    logs.append(f"🧠 Flight Agent: Evaluating {len(condensed)} options via LLM...")
+    print(logs[-1])
+
+    try:
+        eval_llm = llm.with_structured_output(FlightSelection)
+        eval_prompt = ChatPromptTemplate.from_messages([
+            ("system", "Pick the best 1-2 flights considering price, layovers, and time preference. Provide timing_notes and reasoning."),
+            ("human",  "Flights JSON:\n{flights}\n\nTime Preference: {time_preference}")
+        ])
+        best: FlightSelection = (eval_prompt | eval_llm).invoke({
+            "flights":         json.dumps(condensed, indent=2),
+            "time_preference": time_preference,
+        })
+        results = []
+        for f in (best.best_flights or []):
+            results.append({
+                "type":         "flight",
+                "airline":      f.airline,
+                "departure":    f.departure_time,
+                "arrival":      f.arrival_time,
+                "cost":         f.price,
+                "timing_notes": f.timing_notes,
+                "details":      f.reasoning,
+            })
+            log = f"✅ Flight: {f.airline} | {f.departure_time}→{f.arrival_time} | ${f.price}"
+            logs.append(log); print(log)
+    except Exception as e:
+        logs.append(f"⚠️ LLM eval failed ({e}), using top raw result")
+        results = [{"type": "flight", "airline": condensed[0]["airline"], "departure": condensed[0]["departure_time"],
+                    "arrival": condensed[0]["arrival_time"], "cost": condensed[0]["price_usd"],
+                    "timing_notes": "Direct pick", "details": "LLM eval unavailable"}]
+
+    return {"scraped_data": {"flights": results or condensed[:2]}, "status_log": logs}
+
+
+def train_agent(state: dict) -> dict:
+    print("🚆 Train Agent: (dummy)")
+    return {"scraped_data": {"trains": ["Dummy train — plug real API here"]}, "status_log": ["🚆 Train Agent: dummy data"]}
+
+
+def phase1_collector(state: TripState) -> dict:
+    print("📥 Phase 1 Collector: All transportation data gathered.")
+    return {"status_log": ["📥 Phase 1: Transportation data collected. Awaiting approval."]}
+
+
+def phase1_approval(state: TripState) -> dict:
+    """Graph pauses HERE via interrupt_before. UI reads state; user approves."""
+    print("\n⏸️  GRAPH PAUSED — Phase 1 approval gate")
+    return {"status_log": ["⏸️ Waiting for Phase 1 user approval..."]}
+
+
+# ──────────────────────────────────────────────────────────────────
+# PHASE 2 — HOTEL (REAL) + WEATHER + NEWS (dummy, parallel)
+# ──────────────────────────────────────────────────────────────────
+def hotel_agent(state: dict) -> dict:
+    logs = ["🏨 Hotel Agent: Starting SerpApi Google Hotels search..."]
+    print(logs[0])
+
+    trip        = state.get("trip_details", {})
+    task        = state.get("agent_tasks", {}).get("hotel_agent", {})
+    dest_city   = trip.get("destination", "Unknown")
+    check_in    = trip.get("start_date")
+    check_out   = trip.get("end_date")
+    travelers   = trip.get("number_of_travelers", 1)
+    vibe        = task.get("vibe_preference", "standard")
+    serpapi_key = os.getenv("SERPAPI_KEY")
+
+    logs.append(f"🏨 Searching: {dest_city} | {check_in}→{check_out} | Vibe: {vibe}")
+    print(logs[-1])
+
+    try:
+        params = {
+            "engine":         "google_hotels",
+            "q":              dest_city,
+            "check_in_date":  check_in,
+            "check_out_date": check_out,
+            "adults":         travelers,
+            "currency":       "USD",
+            "hl":             "en",
+            "api_key":        serpapi_key,
+        }
+        resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
+        resp.raise_for_status()
+        raw_hotels = resp.json().get("properties", [])
+    except Exception as e:
+        logs.append(f"❌ Hotel API error: {e}")
+        print(logs[-1])
+        return {"scraped_data": {"hotels": [{"error": str(e)}]}, "status_log": logs}
+
+    condensed = []
+    for i, h in enumerate(raw_hotels[:15]):
+        try:
+            price = h.get("rate_per_night", {}).get("extracted_lowest")
+            if not price: continue
+            condensed.append({
+                "option_id":           i + 1,
+                "name":                h.get("name", "Unknown"),
+                "user_rating":         h.get("overall_rating", "N/A"),
+                "description":         str(h.get("description", ""))[:150],
+                "price_per_night_usd": float(price),
+            })
+        except Exception:
+            continue
+
+    if not condensed:
+        return {"scraped_data": {"hotels": [{"error": "No hotels found."}]}, "status_log": logs}
+
+    logs.append(f"🧠 Hotel Agent: LLM evaluating {len(condensed)} hotels for '{vibe}' vibe...")
+    print(logs[-1])
+
+    try:
+        llm      = ChatCohere(model="command-r-08-2024", temperature=0)
+        eval_llm = llm.with_structured_output(HotelSelection)
+        eval_p   = ChatPromptTemplate.from_messages([
+            ("system", "Pick best 1-2 hotels matching the vibe. Provide reasoning."),
+            ("human",  "Hotels:\n{hotels}\n\nVibe: {vibe}\nTravelers: {travelers}")
+        ])
+        best: HotelSelection = (eval_p | eval_llm).invoke({
+            "hotels":    json.dumps(condensed, indent=2),
+            "vibe":      vibe,
+            "travelers": travelers,
+        })
+        results = []
+        for h in (best.best_hotels or []):
+            results.append({
+                "type":           "hotel",
+                "name":           h.hotel_name,
+                "location":       dest_city,
+                "vibe":           vibe,
+                "rating":         h.rating,
+                "cost_per_night": h.total_price,
+                "details":        h.vibe_match_reasoning,
+            })
+            log = f"✅ Hotel: {h.hotel_name} | ⭐{h.rating} | ${h.total_price}/night"
+            logs.append(log); print(log)
+    except Exception as e:
+        logs.append(f"⚠️ LLM eval failed ({e}), using top raw result")
+        results = [{"type": "hotel", "name": condensed[0]["name"], "location": dest_city,
+                    "vibe": vibe, "rating": condensed[0]["user_rating"],
+                    "cost_per_night": condensed[0]["price_per_night_usd"], "details": "LLM eval unavailable"}]
+
+    return {"scraped_data": {"hotels": results or condensed[:2]}, "status_log": logs}
+
+
+def weather_agent(state: dict) -> dict:
+    dest = state.get("trip_details", {}).get("destination", "Destination")
+    msg  = f"🌦 Weather Agent (dummy): Sunny 28-32°C in {dest}. Low chance of rain."
+    print(msg)
+    return {"scraped_data": {"weather": [f"Sunny and pleasant in {dest}. Expect 28–32°C."]}, "status_log": [msg]}
+
+
+def news_agent(state: dict) -> dict:
+    dest = state.get("trip_details", {}).get("destination", "Destination")
+    msg  = f"📰 News Agent (dummy): Fetching events for {dest}"
+    print(msg)
+    return {
+        "scraped_data": {"news": [f"Local cultural festival in {dest}", "No major travel advisories."]},
+        "status_log":   [msg],
+    }
+
+
+def phase2_collector(state: TripState) -> dict:
+    print("📥 Phase 2 Collector: Hotel/Weather/News gathered.")
+    return {"status_log": ["📥 Phase 2: Basecamp data collected. Awaiting approval."]}
+
+
+def phase2_approval(state: TripState) -> dict:
+    """Graph pauses HERE via interrupt_before."""
+    print("\n⏸️  GRAPH PAUSED — Phase 2 approval gate")
+    return {"status_log": ["⏸️ Waiting for Phase 2 user approval..."]}
+
+
+# ──────────────────────────────────────────────────────────────────
+# PHASE 3 — RESTAURANT (dummy) → ITINERARY (real synthesis)
+# ──────────────────────────────────────────────────────────────────
+def restaurant_agent(state: dict) -> dict:
+    dest = state.get("trip_details", {}).get("destination", "Destination")
+    msg  = f"🍽 Restaurant Agent (dummy): Finding dining in {dest}"
+    print(msg)
+    return {
+        "scraped_data": {"restaurants": [
+            f"Spice Garden — authentic local cuisine in {dest}",
+            "The Harbour Grill — seafood with panoramic views",
+        ]},
+        "status_log": [msg],
+    }
+
+
+def itinerary_agent(state: TripState) -> dict:
+    msg = "🗺 Itinerary Agent: Synthesizing final day-by-day plan..."
+    print(msg)
+
+    data     = state.get("scraped_data", {})
+    trip     = state.get("trip_details", {})
+    dest     = trip.get("destination", "your destination")
+    origin   = trip.get("origin", "your city")
+    start    = trip.get("start_date", "")
+    end      = trip.get("end_date", "")
+
+    flights      = data.get("flights", [])
+    hotels       = data.get("hotels", [])
+    weather      = data.get("weather", ["Pleasant weather"])
+    news_items   = data.get("news", [])
+    restaurants  = data.get("restaurants", ["Local eateries"])
+
+    f_info = "No flights"
+    if flights and "error" not in flights[0]:
+        f  = flights[0]
+        f_info = f"{f.get('airline')} | {f.get('departure')}→{f.get('arrival')} | ${f.get('cost')}"
+
+    h_info = "No hotel"
+    if hotels and "error" not in hotels[0]:
+        h  = hotels[0]
+        h_info = f"{h.get('name')} (⭐{h.get('rating')}, ${h.get('cost_per_night')}/night)"
+
+    itinerary = f"""
+╔══════════════════════════════════════════════════════════╗
+║          🌍 YOUR COMPLETE TRIP PLAN                    ║
+║     {origin} → {dest}  |  {start} to {end}            ║
+╚══════════════════════════════════════════════════════════╝
+
+✈️  FLIGHT    : {f_info}
+🏨  HOTEL     : {h_info}
+🌦  WEATHER   : {weather[0] if weather else 'N/A'}
+📰  LOCAL TIP : {news_items[0] if news_items else 'N/A'}
+
+─────────────────────────────────────────────────────────
+ 📅 DAY-BY-DAY ITINERARY
+─────────────────────────────────────────────────────────
+Day 1 — Arrival
+  • Board your flight from {origin}
+  • Check-in at: {h_info}
+  • Evening: Dinner at {restaurants[0] if restaurants else 'local spot'}
+  • Explore the hotel area and rest
+
+Day 2 — Exploration
+  • Morning: Iconic sightseeing in {dest}
+  • Afternoon: Local markets & cultural hubs
+  • Evening: Dinner at {restaurants[1] if len(restaurants)>1 else (restaurants[0] if restaurants else 'local restaurant')}
+  • Night: Leisure at hotel
+
+Day 3 — Departure
+  • Morning: Final breakfast & hotel checkout
+  • Last-minute sightseeing
+  • Head to airport for return journey
+
+📌 Local Tips:
+{chr(10).join(f'  • {n}' for n in news_items)}
+"""
+    print("✅ Itinerary ready!")
+    return {"final_itinerary": itinerary, "status_log": [msg, "✅ Final itinerary generated!"]}
+
+
+def road_agent(state: dict) -> dict:
+    return {"scraped_data": {"road": ["Dummy road data"]}, "status_log": ["🚗 Road Agent: dummy"]}
+
+
+# ──────────────────────────────────────────────────────────────────
+# ROUTERS
+# ──────────────────────────────────────────────────────────────────
+def phase1_router(state: TripState):
+    required = state.get("required_agents", [])
+    tasks    = state.get("agent_tasks", {})
+    trip     = state.get("trip_details", {})
+    sends = []
+    for ag in ["flight_agent", "train_agent"]:
+        if ag in required:
+            sends.append(Send(ag, {"agent_tasks": {ag: tasks.get(ag, {})}, "trip_details": trip}))
+    # If no transport agent, fall straight to collector
+    return sends if sends else []
+
+
+def phase2_router(state: TripState):
+    required = state.get("required_agents", [])
+    tasks    = state.get("agent_tasks", {})
+    trip     = state.get("trip_details", {})
+    sends = []
+    for ag in ["hotel_agent", "weather_agent", "news_agent"]:
+        if ag in required:
+            sends.append(Send(ag, {"agent_tasks": {ag: tasks.get(ag, {})}, "trip_details": trip}))
+    return sends
+
+
+# ──────────────────────────────────────────────────────────────────
+# GRAPH CONSTRUCTION
+# ──────────────────────────────────────────────────────────────────
+workflow = StateGraph(TripState)
+
+# Nodes
+workflow.add_node("orchestrator",     orchestrator_node)
+workflow.add_node("flight_agent",     flight_agent)
+workflow.add_node("train_agent",      train_agent)
+workflow.add_node("phase1_collector", phase1_collector)
+workflow.add_node("phase1_approval",  phase1_approval)
+workflow.add_node("hotel_agent",      hotel_agent)
+workflow.add_node("weather_agent",    weather_agent)
+workflow.add_node("news_agent",       news_agent)
+workflow.add_node("phase2_collector", phase2_collector)
+workflow.add_node("phase2_approval",  phase2_approval)
+workflow.add_node("restaurant_agent", restaurant_agent)
+workflow.add_node("itinerary_agent",  itinerary_agent)
+workflow.add_node("road_agent",       road_agent)
+
+# Edges — Phase 1
+workflow.add_edge(START, "orchestrator")
+workflow.add_conditional_edges("orchestrator", phase1_router, ["flight_agent", "train_agent"])
+workflow.add_edge("flight_agent",      "phase1_collector")
+workflow.add_edge("train_agent",       "phase1_collector")
+workflow.add_edge("phase1_collector",  "phase1_approval")
+
+# Edges — Phase 2
+workflow.add_conditional_edges("phase1_approval", phase2_router, ["hotel_agent", "weather_agent", "news_agent"])
+workflow.add_edge("hotel_agent",       "phase2_collector")
+workflow.add_edge("weather_agent",     "phase2_collector")
+workflow.add_edge("news_agent",        "phase2_collector")
+workflow.add_edge("phase2_collector",  "phase2_approval")
+
+# Edges — Phase 3 (sequential)
+workflow.add_edge("phase2_approval",   "restaurant_agent")
+workflow.add_edge("restaurant_agent",  "itinerary_agent")
+workflow.add_edge("itinerary_agent",   END)
+
+# Compile with MemorySaver
+memory = MemorySaver()
+app = workflow.compile(
+    checkpointer=memory,
+    interrupt_before=["phase1_approval", "phase2_approval"],
+)
+
+print("✅ 3-Phase HiTL graph compiled!")
