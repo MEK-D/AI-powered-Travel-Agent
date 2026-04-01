@@ -15,11 +15,12 @@ import langchain
 
 from agents.flight import flight_agent
 from agents.hotel import hotel_agent
-from agents.itenary import itinerary_agent
+from agents.itinerary import itinerary_agent
 from agents.road import road_agent
 from agents.news import news_agent
 from agents.orchestrator import TripState, orchestrator_node
-from agents.restraunt import restaurant_agent
+from agents.restaurant import restaurant_agent
+from agents.site_seeing import site_seeing_agent
 from agents.train import train_agent
 from agents.weather import weather_agent
 langchain.debug = True
@@ -92,8 +93,10 @@ workflow.add_node("news_agent",       news_agent)
 workflow.add_node("phase2_collector", phase2_collector)
 workflow.add_node("phase2_approval",  phase2_approval)
 workflow.add_node("restaurant_agent", restaurant_agent)
+workflow.add_node("site_seeing_agent", site_seeing_agent)
 workflow.add_node("itinerary_agent",  itinerary_agent)
 workflow.add_node("road_agent",       road_agent)
+
 
 # Edges — Phase 1
 workflow.add_edge(START, "orchestrator")
@@ -111,6 +114,8 @@ workflow.add_edge("phase2_collector",  "phase2_approval")
 
 # Edges — Phase 3 (sequential)
 workflow.add_edge("phase2_approval",   "restaurant_agent")
+workflow.add_edge("phase2_approval",   "site_seeing_agent")
+workflow.add_edge("site_seeing_agent", "itinerary_agent")
 workflow.add_edge("restaurant_agent",  "itinerary_agent")
 workflow.add_edge("itinerary_agent",   END)
 
