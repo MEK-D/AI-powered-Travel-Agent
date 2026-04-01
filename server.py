@@ -3,10 +3,25 @@ server.py — Flask SSE backend for the Travel Concierge UI
 Streams real-time agent events to the browser via Server-Sent Events.
 """
 from flask import Flask, Response, request, jsonify, send_from_directory
-from test import app as graph_app
+from test import get_compiled_graph
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
 import json, threading, queue, uuid, os
 
 flask_app = Flask(__name__, static_folder="static")
+
+# Setup PostgreSQL Connection Pool for the server lifetime
+DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
+connection_pool = ConnectionPool(
+    conninfo=DB_URI,
+    max_size=20,
+    kwargs={"autocommit": True, "prepare_threshold": 0},
+)
+
+# Initialize checkpointer and compile graph once for the server
+checkpointer = PostgresSaver(connection_pool)
+checkpointer.setup()
+graph_app = get_compiled_graph(checkpointer)
 
 # In-memory session store: thread_id → queue of SSE events
 _sessions: dict[str, queue.Queue] = {}

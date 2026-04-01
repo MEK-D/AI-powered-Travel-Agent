@@ -119,11 +119,15 @@ workflow.add_edge("site_seeing_agent", "itinerary_agent")
 workflow.add_edge("restaurant_agent",  "itinerary_agent")
 workflow.add_edge("itinerary_agent",   END)
 
-# Compile with MemorySaver
-memory = MemorySaver()
-app = workflow.compile(
-    checkpointer=memory,
-    interrupt_before=["phase1_approval", "phase2_approval"],
-)
+from langgraph.checkpoint.postgres import PostgresSaver
 
-print("✅ 3-Phase HiTL graph compiled!")
+# Export the uncompiled workflow builder
+# We'll compile it dynamically with a checkpointer
+def get_compiled_graph(checkpointer):
+    app = workflow.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["phase1_approval", "phase2_approval"],
+    )
+    return app
+
+print("✅ 3-Phase HiTL StateGraph builder ready!")
