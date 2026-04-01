@@ -2,8 +2,11 @@
 app_run.py — 3-Phase Human-in-the-Loop runner
 Simulates the browser/UI approving each phase via terminal input.
 """
-from test import app
+from test import get_compiled_graph
 import json
+from langgraph.checkpoint.postgres import PostgresSaver
+
+DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
 
 def display_separator(title: str):
     print("\n" + "=" * 60)
@@ -99,59 +102,63 @@ def run():
         }
     }
 
-    # ─── PHASE 1: Orchestrate + Transportation ──────────────────────────
-    print("▶️  Invoking graph (will pause after Phase 1)...\n")
-    for event in app.stream(initial_state, config=config, stream_mode="values"):
-        pass
+    with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
+        checkpointer.setup()
+        app = get_compiled_graph(checkpointer)
 
-    state_snapshot = app.get_state(config)
-    pretty_print_state(state_snapshot.values, phase=1)
+        # ─── PHASE 1: Orchestrate + Transportation ──────────────────────────
+        print("▶️  Invoking graph (will pause after Phase 1)...\n")
+        for event in app.stream(initial_state, config=config, stream_mode="values"):
+            pass
 
-    # ─── Phase 1 User Approval ──────────────────────────────────────────
-    print("\n" + "─" * 60)
-    
-    # Dynamically format the approval prompt based on which agents actually ran
-    ran_agents = state_snapshot.values.get("required_agents", [])
-    transport_agents = [ag for ag in ran_agents if ag in ["flight_agent", "train_agent"]]
-    transport_str = "/".join([a.split("_")[0] + "s" for a in transport_agents]) if transport_agents else "Transportation"
-    
-    user_input = input(f"✅ Approve Phase 1 ({transport_str}) and continue to Phase 2? [yes/no]: ").strip().lower()
-    if user_input not in ("yes", "y", ""):
-        print("❌ User declined. Stopping.")
-        return
+        state_snapshot = app.get_state(config)
+        pretty_print_state(state_snapshot.values, phase=1)
 
-    # Resume — update state and continue (graph pauses at phase2_approval next)
-    app.update_state(config, {"phase1_approved": True, "human_feedback": "Phase 1 approved"})
-    print("\n▶️  Resuming graph (will pause after Phase 2)...\n")
-    for event in app.stream(None, config=config, stream_mode="values"):
-        pass
+        # ─── Phase 1 User Approval ──────────────────────────────────────────
+        print("\n" + "─" * 60)
+        
+        # Dynamically format the approval prompt based on which agents actually ran
+        ran_agents = state_snapshot.values.get("required_agents", [])
+        transport_agents = [ag for ag in ran_agents if ag in ["flight_agent", "train_agent"]]
+        transport_str = "/".join([a.split("_")[0] + "s" for a in transport_agents]) if transport_agents else "Transportation"
+        
+        user_input = input(f"✅ Approve Phase 1 ({transport_str}) and continue to Phase 2? [yes/no]: ").strip().lower()
+        if user_input not in ("yes", "y", ""):
+            print("❌ User declined. Stopping.")
+            return
 
-    state_snapshot = app.get_state(config)
-    pretty_print_state(state_snapshot.values, phase=2)
+        # Resume — update state and continue (graph pauses at phase2_approval next)
+        app.update_state(config, {"phase1_approved": True, "human_feedback": "Phase 1 approved"})
+        print("\n▶️  Resuming graph (will pause after Phase 2)...\n")
+        for event in app.stream(None, config=config, stream_mode="values"):
+            pass
 
-    # ─── Phase 2 User Approval ──────────────────────────────────────────
-    print("\n" + "─" * 60)
-    
-    # Dynamically format the Phase 2 approval prompt
-    basecamp_agents = [ag for ag in ran_agents if ag in ["hotel_agent", "weather_agent", "news_agent"]]
-    basecamp_str = "/".join([a.split("_")[0] for a in basecamp_agents]) if basecamp_agents else "Hotels/Weather/News"
-    
-    user_input = input(f"✅ Approve Phase 2 ({basecamp_str}) and generate itinerary? [yes/no]: ").strip().lower()
-    if user_input not in ("yes", "y", ""):
-        print("❌ User declined. Stopping.")
-        return
+        state_snapshot = app.get_state(config)
+        pretty_print_state(state_snapshot.values, phase=2)
 
-    # Resume — graph runs Phase 3 to completion
-    app.update_state(config, {"phase2_approved": True, "human_feedback": "Phase 2 approved"})
-    print("\n▶️  Resuming graph (Phase 3 — Restaurant + Itinerary)...\n")
-    for event in app.stream(None, config=config, stream_mode="values"):
-        pass
+        # ─── Phase 2 User Approval ──────────────────────────────────────────
+        print("\n" + "─" * 60)
+        
+        # Dynamically format the Phase 2 approval prompt
+        basecamp_agents = [ag for ag in ran_agents if ag in ["hotel_agent", "weather_agent", "news_agent"]]
+        basecamp_str = "/".join([a.split("_")[0] for a in basecamp_agents]) if basecamp_agents else "Hotels/Weather/News"
+        
+        user_input = input(f"✅ Approve Phase 2 ({basecamp_str}) and generate itinerary? [yes/no]: ").strip().lower()
+        if user_input not in ("yes", "y", ""):
+            print("❌ User declined. Stopping.")
+            return
 
-    final_state = app.get_state(config)
+        # Resume — graph runs Phase 3 to completion
+        app.update_state(config, {"phase2_approved": True, "human_feedback": "Phase 2 approved"})
+        print("\n▶️  Resuming graph (Phase 3 — Restaurant + Itinerary)...\n")
+        for event in app.stream(None, config=config, stream_mode="values"):
+            pass
 
-    display_separator("🎉  YOUR FINAL ITINERARY")
-    print(final_state.values.get("final_itinerary", "No itinerary generated."))
-    display_separator("✨  TRIP PLANNING COMPLETE")
+        final_state = app.get_state(config)
+
+        display_separator("🎉  YOUR FINAL ITINERARY")
+        print(final_state.values.get("final_itinerary", "No itinerary generated."))
+        display_separator("✨  TRIP PLANNING COMPLETE")
 
 
 if __name__ == "__main__":

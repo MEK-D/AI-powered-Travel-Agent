@@ -26,4 +26,5 @@ class SiteSelection(BaseModel):
     
 
 def site_seeing_agent(state: dict) -> dict:
-    print("dummy site seeing agent called with state:", state)
+    print("dummy site seeing agent called.\n site seeing agent running....")
+    return {"status_log": ["🏛️ Site Seeing Agent: (stub)"]}
