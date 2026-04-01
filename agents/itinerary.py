@@ -31,7 +31,7 @@ def itinerary_agent(state: TripState) -> dict:
     hotels       = data.get("hotels", [])
     weather      = data.get("weather", [])
     news_items   = data.get("news", [])
-    restaurants  = data.get("restaurants", ["Local eateries"])
+    restaurants  = data.get("restaurants", [])
 
     trains       = data.get("trains", [])
 
@@ -57,7 +57,7 @@ def itinerary_agent(state: TripState) -> dict:
         
         h_info = f"{h.get('name')} (⭐{h.get('rating')}, ${h.get('cost_per_night')}/night){gps_str}{nearby_str}"
 
-    # --- NEW WEATHER FORMATTING LOGIC ---
+    # --- WEATHER FORMATTING LOGIC ---
     w_info_lines = []
     if weather and isinstance(weather[0], dict) and "error" not in weather[0] and "date" in weather[0]:
         for w in weather:
@@ -66,13 +66,32 @@ def itinerary_agent(state: TripState) -> dict:
             w_info_lines.append(w_line)
         w_info = "\n".join(w_info_lines)
     else:
-        # Fallback for errors or dummy data
         if weather and isinstance(weather[0], dict) and "error" in weather[0]:
             w_info = f"    ⚠️ {weather[0]['error']}"
         elif weather and isinstance(weather[0], str):
             w_info = f"    {weather[0]}"
         else:
             w_info = "    Weather data unavailable."
+
+    # --- NEW RESTAURANT FORMATTING LOGIC ---
+    formatted_restaurants = []
+    if restaurants and isinstance(restaurants[0], dict) and "error" not in restaurants[0]:
+        for r in restaurants:
+            r_name = r.get("name", "Local Spot")
+            r_rating = r.get("rating", "N/A")
+            r_price = r.get("price", "")
+            r_price_str = f", {r_price}" if r_price else ""
+            r_desc = r.get("details", r.get("description", ""))
+            
+            # Format nicely: Name (⭐4.5, $$) — Description
+            formatted_restaurants.append(f"{r_name} (⭐{r_rating}{r_price_str}) — {r_desc}")
+    elif restaurants and isinstance(restaurants[0], str):
+        # Fallback if somehow it's a list of strings
+        formatted_restaurants = restaurants
+
+    # Safely grab day 1 and day 2 options (fallback if lists are empty)
+    r_day1 = formatted_restaurants[0] if len(formatted_restaurants) > 0 else "a highly-rated local restaurant"
+    r_day2 = formatted_restaurants[1] if len(formatted_restaurants) > 1 else r_day1
 
     itinerary = f"""
 ╔══════════════════════════════════════════════════════════╗
@@ -95,13 +114,13 @@ def itinerary_agent(state: TripState) -> dict:
 Day 1 — Arrival
   • Board your transportation from {origin}
   • Check-in at: {h_info}
-  • Evening: Dinner at {restaurants[0] if restaurants else 'local spot'}
+  • Evening: Dinner at {r_day1}
   • Explore the hotel area and rest
 
 Day 2 — Exploration
   • Morning: Iconic sightseeing in {dest}
   • Afternoon: Local markets & cultural hubs
-  • Evening: Dinner at {restaurants[1] if len(restaurants)>1 else (restaurants[0] if restaurants else 'local restaurant')}
+  • Evening: Dinner at {r_day2}
   • Night: Leisure at hotel
 
 Day 3 — Departure
@@ -114,5 +133,3 @@ Day 3 — Departure
 """
     print("✅ Itinerary ready!")
     return {"final_itinerary": itinerary, "status_log": [msg, "✅ Final itinerary generated!"]}
-
-
