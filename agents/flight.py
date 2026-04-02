@@ -37,6 +37,14 @@ def flight_agent(state: dict) -> dict:
     end_date        = trip.get("end_date")
     time_preference = task.get("time_preference", "Any time")
 
+    # ── Human feedback from previous HITL interrupt ──────────────────────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_clause = (
+        f"\n\n⚠️ USER FEEDBACK ON PREVIOUS FLIGHT RESULTS: \"{human_feedback}\""
+        "\nAdjust your ranking/selection to address this feedback."
+        if human_feedback else ""
+    )
+
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
     serpapi_key = os.getenv("SERPAPI_KEY")
 
@@ -104,7 +112,7 @@ def flight_agent(state: dict) -> dict:
     try:
         eval_llm = llm.with_structured_output(FlightSelection)
         eval_prompt = ChatPromptTemplate.from_messages([
-            ("system", "Pick the best 1-2 flights considering price, layovers, and time preference. Provide timing_notes and reasoning."),
+            ("system", f"Pick the best 1-2 flights considering price, layovers, and time preference. Provide timing_notes and reasoning.{feedback_clause}"),
             ("human",  "Flights JSON:\n{flights}\n\nTime Preference: {time_preference}")
         ])
         best: FlightSelection = (eval_prompt | eval_llm).invoke({

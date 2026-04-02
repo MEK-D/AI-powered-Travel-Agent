@@ -1,16 +1,16 @@
 """
 server.py — Flask SSE backend for the Travel Concierge UI
-Streams real-time agent events to the browser via Server-Sent Events.
+Streams real-time agent events; handles 5-phase HITL via Command(resume=...).
 """
 from flask import Flask, Response, request, jsonify, send_from_directory
 from test import get_compiled_graph
 from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.types import Command
 from psycopg_pool import ConnectionPool
 import json, threading, queue, uuid, os
 
 flask_app = Flask(__name__, static_folder="static")
 
-# Setup PostgreSQL Connection Pool for the server lifetime
 DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
 connection_pool = ConnectionPool(
     conninfo=DB_URI,
@@ -18,37 +18,34 @@ connection_pool = ConnectionPool(
     kwargs={"autocommit": True, "prepare_threshold": 0},
 )
 
-# Initialize checkpointer and compile graph once for the server
 checkpointer = PostgresSaver(connection_pool)
 checkpointer.setup()
 graph_app = get_compiled_graph(checkpointer)
 
-# In-memory session store: thread_id → queue of SSE events
 _sessions: dict[str, queue.Queue] = {}
-_session_states: dict[str, dict] = {}
 
 
 # ──────────────────────────────────────────────────────────────────
-# SSE HELPERS
+# SSE helpers
 # ──────────────────────────────────────────────────────────────────
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
-
 
 def _push(q: queue.Queue, event: str, data: dict):
     q.put(_sse(event, data))
 
 
-def _run_phase(thread_id: str, initial_state, q: queue.Queue):
-    """Run LangGraph until next interrupt, pushing events to queue."""
+# ──────────────────────────────────────────────────────────────────
+# Graph streaming worker
+# ──────────────────────────────────────────────────────────────────
+def _run_graph(thread_id: str, input_val, q: queue.Queue):
+    """Stream graph until the next interrupt() or END, pushing SSE events."""
     config = {"configurable": {"thread_id": thread_id}}
     try:
-        for chunk in graph_app.stream(initial_state, config=config, stream_mode="values"):
-            # chunk is the full state after each node execution
+        for chunk in graph_app.stream(input_val, config=config, stream_mode="values"):
             logs = chunk.get("status_log", [])
-            for log in logs[-1:]:   # push latest log line only
+            for log in logs[-1:]:
                 _push(q, "agent_log", {"message": log})
-
             scraped = chunk.get("scraped_data", {})
             if scraped:
                 _push(q, "scraped_update", {"scraped_data": scraped})
@@ -56,25 +53,35 @@ def _run_phase(thread_id: str, initial_state, q: queue.Queue):
         _push(q, "error", {"message": str(e)})
         import traceback; traceback.print_exc()
 
-    # After stream ends (at interrupt or END), push the current snapshot
+    # After stream ends, inspect state for interrupt or completion
     snap = graph_app.get_state(config)
     vals = snap.values
-    _session_states[thread_id] = vals
+
+    # Collect interrupt payloads from the current state tasks
+    interrupt_payloads = []
+    for task in (snap.tasks or []):
+        for intr in getattr(task, "interrupts", []):
+            interrupt_payloads.append(intr.value)
 
     next_nodes = list(snap.next) if snap.next else []
+    is_done    = (not next_nodes) and (not interrupt_payloads)
+
     _push(q, "phase_complete", {
-        "next_nodes":    next_nodes,
-        "scraped_data":  vals.get("scraped_data", {}),
-        "trip_details":  vals.get("trip_details", {}),
-        "final_itinerary": vals.get("final_itinerary", ""),
-        "status_log":    vals.get("status_log", []),
-        "is_done":       len(next_nodes) == 0,
+        "next_nodes":         next_nodes,
+        "interrupt_payloads": interrupt_payloads,
+        "scraped_data":       vals.get("scraped_data", {}),
+        "trip_details":       vals.get("trip_details", {}),
+        "final_itinerary":    vals.get("final_itinerary", ""),
+        "status_log":         vals.get("status_log", []),
+        "hitl_action":        vals.get("hitl_action", ""),
+        "last_approved_phase": vals.get("last_approved_phase", ""),
+        "is_done":            is_done,
     })
     q.put(None)   # sentinel → close stream
 
 
 # ──────────────────────────────────────────────────────────────────
-# ROUTES
+# Routes
 # ──────────────────────────────────────────────────────────────────
 @flask_app.route("/")
 def index():
@@ -83,9 +90,10 @@ def index():
 
 @flask_app.route("/api/start", methods=["POST"])
 def start():
-    """Start a new trip planning session (Phase 1)."""
+    """Start a new trip planning session."""
     body        = request.get_json(force=True)
     user_prompt = body.get("prompt", "").strip()
+    trip_details = body.get("trip_details", {})
     if not user_prompt:
         return jsonify({"error": "prompt required"}), 400
 
@@ -93,8 +101,15 @@ def start():
     q = queue.Queue()
     _sessions[thread_id] = q
 
-    initial_state = {"user_request": user_prompt}
-    t = threading.Thread(target=_run_phase, args=(thread_id, initial_state, q), daemon=True)
+    initial_state = {
+        "user_request":        user_prompt,
+        "trip_details":        trip_details,
+        "human_feedback":      "",
+        "last_approved_phase": "",
+        "hitl_action":         "approved",
+        "scraped_data":        {},
+    }
+    t = threading.Thread(target=_run_graph, args=(thread_id, initial_state, q), daemon=True)
     t.start()
 
     return jsonify({"thread_id": thread_id})
@@ -120,25 +135,48 @@ def stream(thread_id: str):
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
-@flask_app.route("/api/approve/<thread_id>", methods=["POST"])
-def approve(thread_id: str):
-    """Approve current phase and resume graph."""
-    body  = request.get_json(force=True)
-    phase = body.get("phase", 1)
-    config = {"configurable": {"thread_id": thread_id}}
+@flask_app.route("/api/resume/<thread_id>", methods=["POST"])
+def resume(thread_id: str):
+    """
+    Universal resume endpoint — replaces the old /approve endpoint.
+    Body: { "decision": "yes" | "no" | "<feedback text>" }
+    """
+    body     = request.get_json(force=True)
+    decision = body.get("decision", "yes").strip()
+    if not decision:
+        decision = "yes"
 
-    if phase == 1:
-        graph_app.update_state(config, {"phase1_approved": True, "human_feedback": "Phase 1 approved via UI"})
-    else:
-        graph_app.update_state(config, {"phase2_approved": True, "human_feedback": "Phase 2 approved via UI"})
-
-    # Fresh queue for resumed stream
     q = queue.Queue()
     _sessions[thread_id] = q
 
-    t = threading.Thread(target=_run_phase, args=(thread_id, None, q), daemon=True)
+    t = threading.Thread(
+        target=_run_graph,
+        args=(thread_id, Command(resume=decision), q),
+        daemon=True,
+    )
     t.start()
 
+    return jsonify({"status": "resumed", "decision": decision})
+
+
+# Keep old /api/approve for backward compatibility with the existing frontend
+@flask_app.route("/api/approve/<thread_id>", methods=["POST"])
+def approve(thread_id: str):
+    body  = request.get_json(force=True)
+    phase = body.get("phase", 1)
+    feedback = body.get("feedback", "").strip()
+
+    # Map old approve calls to the new Command(resume=...) pattern
+    decision = feedback if feedback else "yes"
+    q = queue.Queue()
+    _sessions[thread_id] = q
+
+    t = threading.Thread(
+        target=_run_graph,
+        args=(thread_id, Command(resume=decision), q),
+        daemon=True,
+    )
+    t.start()
     return jsonify({"status": "resumed", "phase": phase})
 
 
@@ -147,7 +185,11 @@ def get_state(thread_id: str):
     config = {"configurable": {"thread_id": thread_id}}
     try:
         snap = graph_app.get_state(config)
-        return jsonify(snap.values)
+        interrupts = []
+        for task in (snap.tasks or []):
+            for intr in getattr(task, "interrupts", []):
+                interrupts.append(intr.value)
+        return jsonify({**snap.values, "interrupt_payloads": interrupts})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

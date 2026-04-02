@@ -48,6 +48,14 @@ def train_agent(state: dict) -> dict:
     logs.append(f"🚆 Route: {origin_city} → {dest_city} on {start_date} | Pref: {time_preference}, {seat_class} class")
     print(logs[-1])
 
+    # ── Human feedback from previous HITL interrupt ──────────────────────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_clause = (
+        f"\n\n⚠️ USER FEEDBACK ON PREVIOUS TRAIN RESULTS: \"{human_feedback}\""
+        "\nAdjust your train selection to address this feedback."
+        if human_feedback else ""
+    )
+
     # --- STEP 1: Resolve city names → Indian Railway station codes via LLM ---
     try:
         station_prompt = ChatPromptTemplate.from_template(
@@ -109,7 +117,7 @@ def train_agent(state: dict) -> dict:
     try:
         eval_llm_1 = llm.with_structured_output(TopTrainCandidates)
         prompt_1 = ChatPromptTemplate.from_messages([
-            ("system", "Review the JSON list of available trains. Pick exactly the 3 best `option_id`s that match the user's Time Preference ({time_preference}) and Train Type ({train_type}). Do not worry about price yet."),
+            ("system", f"Review the JSON list of available trains. Pick exactly the 3 best `option_id`s that match the user's Time Preference ({{time_preference}}) and Train Type ({{train_type}}). Do not worry about price yet.{feedback_clause}"),
             ("human", "Available Trains:\n{trains}")
         ])
         top_candidates: TopTrainCandidates = (prompt_1 | eval_llm_1).invoke({
