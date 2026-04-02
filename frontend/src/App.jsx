@@ -23,9 +23,9 @@ export default function App() {
   const [selectedHotel, setSelectedHotel]   = useState(null)
 
   const {
-    threadId, status, logs, agentStates, scraped,
+    threadId, status, error, hitl, logs, agentStates, scraped, timeline,
     phase1Done, phase2Done, isDone, finalItinerary,
-    startSession, approve, reset,
+    startSession, approve, resume, reset, retry,
   } = useAgentStream({ onFlights: f => !selectedFlight && setSelectedFlight(f[0] || null),
                        onHotels:  h => !selectedHotel  && setSelectedHotel (h[0] || null) })
 
@@ -34,18 +34,84 @@ export default function App() {
     reset()
     setSelectedFlight(null)
     setSelectedHotel(null)
-    setActiveTab(1)
+    setActiveTab(0)
     await startSession(prompt)
   }, [prompt, startSession, reset])
 
   const handleApprove = useCallback(async (phase) => {
     await approve(phase)
-    setActiveTab(phase + 1)
+    if (phase === 0) {
+      setActiveTab(1) // Move to flights tab after orchestrator approval
+    } else if (phase === 1) {
+      setActiveTab(2) // Move to hotels tab after phase 1 approval
+    } else if (phase === 2) {
+      setActiveTab(3) // Move to itinerary tab after phase 2 approval
+    }
   }, [approve])
+
+  const handleHitlSend = useCallback(async (text) => {
+    await resume(text)
+  }, [resume])
+
+  const handleResetAll = useCallback(() => {
+    reset()
+    setSelectedFlight(null)
+    setSelectedHotel(null)
+    setActiveTab(0)
+  }, [reset])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <Header status={status} />
+      {error && (
+        <div style={{
+          padding: '10px 16px',
+          background: 'rgba(239,68,68,0.10)',
+          borderBottom: '1px solid rgba(239,68,68,0.22)',
+          color: '#fecaca',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexShrink: 0,
+        }}>
+          <div style={{ fontWeight: 800, fontFamily: "'Outfit', sans-serif" }}>❌ Connection / Runtime Error</div>
+          <div style={{ color: '#fca5a5', fontSize: '.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+            {String(error)}
+          </div>
+          <button
+            onClick={retry}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: '1px solid rgba(16,185,129,0.3)',
+              background: 'rgba(16,185,129,0.1)',
+              color: '#bbf7d0',
+              cursor: 'pointer',
+              fontWeight: 800,
+              fontFamily: "'Outfit', sans-serif",
+              marginRight: 8,
+            }}
+          >
+            Retry
+          </button>
+          <button
+            onClick={handleResetAll}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.10)',
+              background: 'rgba(255,255,255,0.06)',
+              color: '#e2e8f0',
+              cursor: 'pointer',
+              fontWeight: 800,
+              fontFamily: "'Outfit', sans-serif",
+            }}
+          >
+            Reset
+          </button>
+
+        </div>
+      )}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar
           prompt={prompt}
@@ -55,6 +121,7 @@ export default function App() {
           agentStates={agentStates}
           logs={logs}
           disabled={status === 'running'}
+          status={status}
         />
         <MainPanel
           activeTab={activeTab}
@@ -65,11 +132,15 @@ export default function App() {
           isDone={isDone}
           finalItinerary={finalItinerary}
           onApprove={handleApprove}
+          onHitlSend={handleHitlSend}
+          hitl={hitl}
           selectedFlight={selectedFlight}
           setSelectedFlight={setSelectedFlight}
           selectedHotel={selectedHotel}
           setSelectedHotel={setSelectedHotel}
           status={status}
+          agentStates={agentStates}
+          timeline={timeline}
         />
       </div>
     </div>

@@ -5,7 +5,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 
 load_dotenv()
 
@@ -100,9 +100,11 @@ def site_seeing_agent(state: dict) -> dict:
             })
             logs.append(f"✅ Site: {s.name} ({s.type_of_place})")
 
+        tl = [{"id": str(uuid.uuid4()), "from": "site_seeing_agent", "to": "phase3_collector", "message": f"Found {len(sites_list)} top attractions."}]
         return {
             "scraped_data": {"sites": sites_list},
-            "status_log": logs
+            "status_log": logs,
+            "timeline": tl
         }
 
     except Exception as e:

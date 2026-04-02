@@ -4,22 +4,52 @@ Streams real-time agent events; handles 5-phase HITL via Command(resume=...).
 """
 from flask import Flask, Response, request, jsonify, send_from_directory
 from test import get_compiled_graph
-from langgraph.checkpoint.postgres import PostgresSaver
-from langgraph.types import Command
-from psycopg_pool import ConnectionPool
 import json, threading, queue, uuid, os
+
+# Try to import PostgreSQL checkpointer, fallback to memory
+try:
+    from langgraph_checkpoint.postgres import PostgresSaver
+    from psycopg_pool import ConnectionPool
+    USE_POSTGRES = True
+except ImportError:
+    try:
+        from langgraph.checkpoint.postgres import PostgresSaver
+        from psycopg_pool import ConnectionPool
+        USE_POSTGRES = True
+    except ImportError:
+        # Fallback to memory checkpointer
+        USE_POSTGRES = False
+        print("⚠️ PostgreSQL checkpointer not found, using memory checkpointer")
+
+from langgraph.types import Command
 
 flask_app = Flask(__name__, static_folder="static")
 
-DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
-connection_pool = ConnectionPool(
-    conninfo=DB_URI,
-    max_size=20,
-    kwargs={"autocommit": True, "prepare_threshold": 0},
-)
+# Setup checkpointer
+if USE_POSTGRES:
+    try:
+        DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
+        connection_pool = ConnectionPool(
+            conninfo=DB_URI,
+            max_size=20,
+            kwargs={"autocommit": True, "prepare_threshold": 0},
+        )
+        checkpointer = PostgresSaver(connection_pool)
+        checkpointer.setup()
+        print("✅ PostgreSQL checkpointer initialized")
+    except Exception as e:
+        print(f"⚠️ Failed to initialize PostgreSQL: {e}")
+        print("🔄 Falling back to memory checkpointer")
+        # Create a simple memory checkpointer
+        from langgraph.checkpoint.memory import MemorySaver
+        checkpointer = MemorySaver()
+        print("✅ Memory checkpointer initialized")
+else:
+    print("🔄 Using memory checkpointer")
+    from langgraph.checkpoint.memory import MemorySaver
+    checkpointer = MemorySaver()
+    print("✅ Memory checkpointer initialized")
 
-checkpointer = PostgresSaver(connection_pool)
-checkpointer.setup()
 graph_app = get_compiled_graph(checkpointer)
 
 _sessions: dict[str, queue.Queue] = {}
@@ -49,6 +79,10 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
             scraped = chunk.get("scraped_data", {})
             if scraped:
                 _push(q, "scraped_update", {"scraped_data": scraped})
+            timeline = chunk.get("timeline", [])
+            if timeline:
+                _push(q, "timeline_update", {"timeline": timeline})
+
     except Exception as e:
         _push(q, "error", {"message": str(e)})
         import traceback; traceback.print_exc()
@@ -73,10 +107,12 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
         "trip_details":       vals.get("trip_details", {}),
         "final_itinerary":    vals.get("final_itinerary", ""),
         "status_log":         vals.get("status_log", []),
+        "timeline":           vals.get("timeline", []),
         "hitl_action":        vals.get("hitl_action", ""),
         "last_approved_phase": vals.get("last_approved_phase", ""),
         "is_done":            is_done,
     })
+
     q.put(None)   # sentinel → close stream
 
 
@@ -93,7 +129,15 @@ def start():
     """Start a new trip planning session."""
     body        = request.get_json(force=True)
     user_prompt = body.get("prompt", "").strip()
-    trip_details = body.get("trip_details", {})
+    # trip_details = body.get("trip_details", {})
+    trip_details = {
+            "origin":              "srinagar",
+            "destination":         "goa",
+            "start_date":          "2026-04-10",
+            "end_date":            "2026-04-13",
+            "number_of_travelers": 1,
+            "total_budget":        500.0,
+        }
     if not user_prompt:
         return jsonify({"error": "prompt required"}), 400
 
@@ -105,6 +149,8 @@ def start():
         "user_request":        user_prompt,
         "trip_details":        trip_details,
         "human_feedback":      "",
+        "pending_feedback":    "",
+        "feedback_route":      "",
         "last_approved_phase": "",
         "hitl_action":         "approved",
         "scraped_data":        {},
@@ -196,5 +242,5 @@ def get_state(thread_id: str):
 
 if __name__ == "__main__":
     os.makedirs("static", exist_ok=True)
-    print("🚀 Travel Concierge server starting at http://localhost:5000")
+    print("Travel Concierge server starting at http://localhost:5000")
     flask_app.run(debug=False, threaded=True, port=5000)

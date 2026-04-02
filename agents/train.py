@@ -7,7 +7,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 from datetime import datetime
 import langchain
 
@@ -231,4 +231,5 @@ def train_agent(state: dict) -> dict:
             "details":    "LLM final eval unavailable, auto-selected top shortlisted train.",
         }]
 
-    return {"scraped_data": {"trains": results}, "status_log": logs}
+    tl = [{"id": str(uuid.uuid4()), "from": "train_agent", "to": "phase1_collector", "message": f"Recommended train: {results[0]['train_name'] if results else 'N/A'}"}]
+    return {"scraped_data": {"trains": results}, "status_log": logs, "timeline": tl}

@@ -7,7 +7,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 from datetime import datetime
 import langchain
 
@@ -138,4 +138,6 @@ def flight_agent(state: dict) -> dict:
                     "arrival": condensed[0]["arrival_time"], "cost": condensed[0]["price_usd"],
                     "timing_notes": "Direct pick", "details": "LLM eval unavailable"}]
 
-    return {"scraped_data": {"flights": results or condensed[:2]}, "status_log": logs}
+    tl = [{"id": str(uuid.uuid4()), "from": "flight_agent", "to": "phase1_collector", "message": f"Found {len(results or condensed[:2])} flights."}]
+    return {"scraped_data": {"flights": results or condensed[:2]}, "status_log": logs, "timeline": tl}
+

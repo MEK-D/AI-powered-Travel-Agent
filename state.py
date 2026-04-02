@@ -14,7 +14,10 @@ class TripState(TypedDict):
     agent_tasks:         Dict[str, dict]
     scraped_data:        Annotated[Dict[str, list], _merge]
     human_feedback:      str          # latest user feedback text (cleared on approve)
+    pending_feedback:    str          # latest raw HITL input awaiting routing decision
+    feedback_route:      str          # "proceed" | "retry" | "orchestrator"
     last_approved_phase: str          # e.g. "orchestrator", "transport", "basecamp", "activities"
     hitl_action:         str          # "approved" | "cancelled" | "feedback"
     final_itinerary:     str
     status_log:          Annotated[List[str], operator.add]
+    timeline:           Annotated[List[dict], operator.add]   # Agent-to-agent communication entries
