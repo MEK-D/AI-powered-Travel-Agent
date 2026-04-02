@@ -7,7 +7,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 from datetime import datetime
 import langchain
 
@@ -131,4 +131,5 @@ def weather_agent(state: dict) -> dict:
             "symbol": temp_symbol
         } for d in condensed_weather]
 
-    return {"scraped_data": {"weather": results}, "status_log": logs}
+    tl = [{"id": str(uuid.uuid4()), "from": "weather_agent", "to": "phase2_collector", "message": f"Weather forecast for {dest_city} retrieved."}]
+    return {"scraped_data": {"weather": results}, "status_log": logs, "timeline": tl}

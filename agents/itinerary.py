@@ -9,7 +9,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 from datetime import datetime
 import langchain
 
@@ -138,5 +138,6 @@ Day 3 — Departure
 📌 Local Tips:
 {chr(10).join(f'  • {n}' for n in news_items)}
 """
-    print("✅ Itinerary ready!")
-    return {"final_itinerary": itinerary, "status_log": [msg, "✅ Final itinerary generated!"]}
+    print("Itinerary ready!")
+    tl = [{"id": str(uuid.uuid4()), "from": "itinerary_agent", "to": "itinerary_hitl", "message": "Final itinerary drafted."}]
+    return {"final_itinerary": itinerary, "status_log": [msg, "Final itinerary generated!"], "timeline": tl}

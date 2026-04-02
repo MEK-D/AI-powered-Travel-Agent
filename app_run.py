@@ -164,8 +164,8 @@ def run():
     initial_state = {
         "user_request":  user_prompt,
         "trip_details": {
-            "origin":              "delhi",
-            "destination":         "jaipur",
+            "origin":              "srinagar",
+            "destination":         "goa",
             "start_date":          "2026-04-10",
             "end_date":            "2026-04-13",
             "number_of_travelers": 1,

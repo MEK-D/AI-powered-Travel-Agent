@@ -8,7 +8,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 from datetime import datetime
 import langchain
 
@@ -163,9 +163,16 @@ Rules:
     
     agent_tasks = {n: (t.dict(exclude_none=True) if t else {}) for n, t in task_map.items() if n in required}
 
+    tl = [
+        {"id": str(uuid.uuid4()), "from": "orchestrator", "to": ag, "message": f"Assigned task: {json.dumps(task_map.get(ag).dict(exclude_none=True) if task_map.get(ag) else {})[:60]}..."}
+        for ag in required
+    ]
+
     return {
         "required_agents": required,
         "agent_tasks":     agent_tasks,
         "hitl_action":     "approved",   # reset gate flag for this run
         "status_log":      [msg, f"✅ Plan built. Agents: {required}"],
+        "timeline":        tl,
     }
+

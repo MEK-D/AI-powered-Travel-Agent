@@ -7,7 +7,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 from datetime import datetime
 import langchain
 
@@ -115,4 +115,5 @@ def news_agent(state: dict) -> dict:
         top_headline = condensed_news[0]["title"]
         final_news_data = [f"Latest Headline: {top_headline}"]
 
-    return {"scraped_data": {"news": final_news_data}, "status_log": logs}
+    tl = [{"id": str(uuid.uuid4()), "from": "news_agent", "to": "phase2_collector", "message": f"News updates for {dest_city} retrieved."}]
+    return {"scraped_data": {"news": final_news_data}, "status_log": logs, "timeline": tl}

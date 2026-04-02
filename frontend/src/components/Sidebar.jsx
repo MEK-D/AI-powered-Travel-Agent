@@ -1,5 +1,7 @@
 import { useRef, useEffect } from 'react'
 import AgentItem from './AgentItem'
+import AnimatedLog from './AnimatedLog'
+import AgentProgressBar from './AgentProgressBar'
 
 const s = {
   sidebar: {
@@ -23,14 +25,15 @@ const s = {
     boxShadow: disabled ? 'none' : '0 4px 20px rgba(99,102,241,0.38)',
     transition: 'all .3s', opacity: disabled ? .6 : 1, letterSpacing: '.02em',
   }),
+  progressPanel: { padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
   agentsPanel: { padding: '18px 16px', flex: 1, overflowY: 'auto' },
   panelLabel: { fontSize: '.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 12 },
-  logPanel: { padding: '14px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', height: 170, display: 'flex', flexDirection: 'column' },
+  logPanel: { padding: '14px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', height: 200, display: 'flex', flexDirection: 'column' },
   logScroll: { flex: 1, overflowY: 'auto', fontFamily: "'Courier New', monospace", fontSize: '.72rem', lineHeight: 1.8 },
   logLine: (i, total) => ({ color: i === total - 1 ? '#06b6d4' : '#64748b', padding: '0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }),
 }
 
-export default function Sidebar({ prompt, setPrompt, onStart, agents, agentStates, logs, disabled }) {
+export default function Sidebar({ prompt, setPrompt, onStart, agents, agentStates, logs, disabled, status }) {
   const logRef = useRef(null)
 
   useEffect(() => {
@@ -56,6 +59,11 @@ export default function Sidebar({ prompt, setPrompt, onStart, agents, agentState
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
 
+      {/* Progress */}
+      <div style={s.progressPanel}>
+        <AgentProgressBar agentStates={agentStates} status={status} />
+      </div>
+
       {/* Agents */}
       <div style={s.agentsPanel}>
         <div style={s.panelLabel}>⚡ Active Agents</div>
@@ -67,14 +75,7 @@ export default function Sidebar({ prompt, setPrompt, onStart, agents, agentState
       {/* Log */}
       <div style={s.logPanel}>
         <div style={s.panelLabel}>📡 Live Agent Log</div>
-        <div style={s.logScroll} ref={logRef}>
-          {logs.length === 0
-            ? <div style={{ color: '#334155', fontSize: '.75rem' }}>Waiting for session…</div>
-            : logs.map((l, i) => (
-                <div key={i} style={s.logLine(i, logs.length)}>{l}</div>
-              ))
-          }
-        </div>
+        <AnimatedLog logs={logs} />
       </div>
     </aside>
   )

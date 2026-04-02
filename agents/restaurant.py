@@ -7,7 +7,7 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests
+import json, os, requests, uuid
 from datetime import datetime
 import langchain
 
@@ -123,6 +123,7 @@ def restaurant_agent(state: dict) -> dict:
         logs.append(f"⚠️ LLM eval failed ({e}), returning raw results")
         results = condensed[:3] # Fallback
     print("restaurants:", results)
-    return {"scraped_data": {"restaurants": results}, "status_log": logs}
+    tl = [{"id": str(uuid.uuid4()), "from": "restaurant_agent", "to": "phase3_collector", "message": f"Found {len(results)} restaurant options."}]
+    return {"scraped_data": {"restaurants": results}, "status_log": logs, "timeline": tl}
 
 
