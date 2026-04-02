@@ -48,6 +48,14 @@ def restaurant_agent(state: dict) -> dict:
     serpapi_key = os.getenv("SERPAPI_KEY")
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
 
+    # ── Human feedback from previous HITL interrupt ──────────────────────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_clause = (
+        f"\n\n⚠️ USER FEEDBACK ON PREVIOUS DINING RESULTS: \"{human_feedback}\""
+        "\nAdjust your restaurant selection to address this feedback."
+        if human_feedback else ""
+    )
+
     # 2. SerpApi Google Maps Search
     try:
         params = {
@@ -87,7 +95,7 @@ def restaurant_agent(state: dict) -> dict:
     try:
         eval_llm = llm.with_structured_output(RestaurantSelection)
         eval_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a local food guide. Based on the hotel location and restaurant data, pick the 3 best diverse options (e.g., one casual, one fine dining, one local favorite)."),
+            ("system", f"You are a local food guide. Based on the hotel location and restaurant data, pick the 3 best diverse options (e.g., one casual, one fine dining, one local favorite).{feedback_clause}"),
             ("human", "Available Restaurants:\n{restaurants}\n\nHotel Context: {context}")
         ])
         

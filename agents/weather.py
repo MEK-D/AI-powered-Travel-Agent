@@ -38,6 +38,14 @@ def weather_agent(state: dict) -> dict:
     units = task.get("preferred_units", "celsius").lower()
     unit_group = "us" if units == "fahrenheit" else "metric"
     temp_symbol = "°F" if units == "fahrenheit" else "°C"
+
+    # ── Human feedback from previous HITL interrupt ──────────────────────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_clause = (
+        f"\n\n⚠️ USER FEEDBACK: \"{human_feedback}\""
+        "\nAdjust your weather advice to address this feedback."
+        if human_feedback else ""
+    )
     
     api_key = os.getenv("VISUAL_CROSSING_API_KEY")
 
@@ -87,9 +95,9 @@ def weather_agent(state: dict) -> dict:
         evaluator_llm = llm.with_structured_output(WeatherForecast)
 
         eval_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert travel meteorologist. Review the following daily weather data for the user's destination. 
+            ("system", f"""You are an expert travel meteorologist. Review the following daily weather data for the user's destination. 
             Format it into the requested structure. 
-            Most importantly, provide a short, highly practical 'travel_advice' for each day based on the conditions and temperature (e.g., 'Bring a heavy coat', 'Wear sunscreen', 'Keep indoor backup plans ready')."""),
+            Most importantly, provide a short, highly practical 'travel_advice' for each day based on the conditions and temperature (e.g., 'Bring a heavy coat', 'Wear sunscreen', 'Keep indoor backup plans ready').{feedback_clause}"""),
             ("human", "Destination: {destination}\nUnits: {units}\nWeather Data:\n{weather_data}")
         ])
 

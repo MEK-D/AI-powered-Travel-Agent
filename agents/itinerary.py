@@ -26,6 +26,14 @@ def itinerary_agent(state: TripState) -> dict:
     start    = trip.get("start_date", "")
     end      = trip.get("end_date", "")
 
+    # ── Human feedback carried from last itinerary HITL ────────────────────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_note = (
+        f"\n\n⚠️ REGENERATION FEEDBACK FROM USER: \"{human_feedback}\""
+        "\nRevise the itinerary to specifically address this feedback."
+        if human_feedback else ""
+    )
+
     flights      = data.get("flights", [])
     hotels       = data.get("hotels", [])
     weather      = data.get("weather", [])

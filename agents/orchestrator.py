@@ -84,6 +84,14 @@ def orchestrator_node(state: TripState) -> dict:
     llm = ChatCohere(model="command-r-08-2024", temperature=0, max_retries=1)
     structured = llm.with_structured_output(OrchestratorPlan)
     today = datetime.now().strftime("%Y-%m-%d")
+
+    # ── Incorporate any user feedback from a previous HITL interrupt ──────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_clause = (
+        f"\n\n⚠️  USER FEEDBACK ON PREVIOUS PLAN: \"{human_feedback}\""
+        "\nRevise the agent selection and task parameters to satisfy this feedback."
+        if human_feedback else ""
+    )
     
     # Grab the trip details passed in during graph invocation
     trip = state.get("trip_details", {})
@@ -105,9 +113,10 @@ Your job is to decide which agents to activate based on their prompt:
 Rules:
 - Always include: itinerary_agent, hotel_agent, weather_agent, news_agent
 - If user says "by flight" → activate flight_agent
+- If user mentions train/rail → activate train_agent
 - If user mentions something like food/dining/eating/meal → activate restaurant_agent
 - DO NOT over-provision. If they are driving, do not call the flight agent.
-- Fill out the specific tasks (preferences) ONLY for the agents you are activating."""),
+- Fill out the specific tasks (preferences) ONLY for the agents you are activating.{feedback_clause}"""),
         ("human", "User Request: {user_request}, trip details: {trip_details}")
     ])
 
@@ -155,10 +164,8 @@ Rules:
     agent_tasks = {n: (t.dict(exclude_none=True) if t else {}) for n, t in task_map.items() if n in required}
 
     return {
-        # Note: We don't return "trip_details" here anymore because it's already in the global state!
-        "required_agents":  required,
-        "agent_tasks":      agent_tasks,
-        "phase1_approved":  False,
-        "phase2_approved":  False,
-        "status_log":       [msg, f"✅ Plan built. Agents: {required}"],
+        "required_agents": required,
+        "agent_tasks":     agent_tasks,
+        "hitl_action":     "approved",   # reset gate flag for this run
+        "status_log":      [msg, f"✅ Plan built. Agents: {required}"],
     }

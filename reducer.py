@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TypedDict, List, Dict, Optional, Annotated
-from langgraph.graph import StateGraph, START, END
-from langgraph.constants import Send
-from pydantic import BaseModel, Field
-from dotenv import load_dotenv
-import langchain
+from typing import Dict
 
 def _merge(a: Dict, b: Dict) -> Dict:
+    """
+    Merge two dicts. List values are concatenated.
+    If a value in b is None, that key is DELETED from the result (used for phase re-runs).
+    """
     out = dict(a or {})
     for k, v in (b or {}).items():
-        if k in out and isinstance(out[k], list) and isinstance(v, list):
-            out[k] = out[k] + v
+        if v is None:
+            out.pop(k, None)          # None = explicit delete (for HITL re-run clearing)
+        elif k in out and isinstance(out[k], list) and isinstance(v, list):
+            out[k] = out[k] + v       # append lists
         else:
-            out[k] = v
+            out[k] = v                # overwrite
     return out

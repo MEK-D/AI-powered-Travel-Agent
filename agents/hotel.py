@@ -39,6 +39,14 @@ def hotel_agent(state: dict) -> dict:
     vibe        = task.get("vibe_preference", "standard")
     serpapi_key = os.getenv("SERPAPI_KEY")
 
+    # ── Human feedback from previous HITL interrupt ──────────────────────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_clause = (
+        f"\n\n⚠️ USER FEEDBACK ON PREVIOUS HOTEL RESULTS: \"{human_feedback}\""
+        "\nAdjust your hotel ranking to address this feedback."
+        if human_feedback else ""
+    )
+
     try:
         params = {
             "engine":         "google_hotels",
@@ -92,7 +100,7 @@ def hotel_agent(state: dict) -> dict:
         llm      = ChatCohere(model="command-r-08-2024", temperature=0)
         eval_llm = llm.with_structured_output(HotelSelection)
         eval_p   = ChatPromptTemplate.from_messages([
-            ("system", "Pick best 1-2 hotels. You MUST preserve the exact 'gps_coordinates' and 'nearby_places' provided in the source data."),
+            ("system", f"Pick best 1 hotels. You MUST preserve the exact 'gps_coordinates' and 'nearby_places' provided in the source data.{feedback_clause}"),
             ("human",  "Hotels Data:\n{hotels}\n\nVibe: {vibe}")
         ])
         best: HotelSelection = (eval_p | eval_llm).invoke({

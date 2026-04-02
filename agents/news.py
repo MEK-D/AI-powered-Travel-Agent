@@ -27,6 +27,14 @@ def news_agent(state: dict) -> dict:
     dest_city = trip.get("destination", "Unknown")
     serpapi_key = os.getenv("SERPAPI_KEY")
 
+    # ── Human feedback from previous HITL interrupt ──────────────────────────
+    human_feedback = state.get("human_feedback", "").strip()
+    feedback_clause = (
+        f"\n\n⚠️ USER FEEDBACK: \"{human_feedback}\""
+        "\nAdjust your news filtering/summaries to address this feedback."
+        if human_feedback else ""
+    )
+
     logs.append(f"📰 Fetching latest news for: {dest_city}")
     print(logs[-1])
 
@@ -70,7 +78,7 @@ def news_agent(state: dict) -> dict:
         evaluator_llm = llm.with_structured_output(FilteredTravelNews)
 
         evaluation_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an elite Travel Risk and Event Analyst.
+            ("system", f"""You are an elite Travel Risk and Event Analyst.
             Review the following list of recent news headlines for the user's destination.
             Filter out all irrelevant local news (e.g., sports, local business, minor politics).
             Keep ONLY the news that will directly impact a tourist's experience. This includes:
@@ -79,7 +87,7 @@ def news_agent(state: dict) -> dict:
             - Safety, protests, or health advisories
             - Major local festivals, holidays, or massive events
 
-            If none of the news affects a traveler, return an empty list."""),
+            If none of the news affects a traveler, return an empty list.{feedback_clause}"""),
             ("human", "Destination: {destination}\n\nRecent News:\n{news}")
         ])
 
