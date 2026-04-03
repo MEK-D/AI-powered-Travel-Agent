@@ -1,63 +1,65 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 
 const s = {
   progressContainer: {
-    padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)',
+    padding: '4px 2px',
   },
   progressTitle: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '.85rem', fontWeight: 700,
-    color: '#64748b', marginBottom: 12, textTransform: 'uppercase',
-    letterSpacing: '.05em',
+    fontFamily: "'Outfit', sans-serif", fontSize: '.7rem', fontWeight: 800,
+    color: '#64748b', marginBottom: 14, textTransform: 'uppercase',
+    letterSpacing: '.12em', display: 'flex', justifyContent: 'space-between'
   },
   phasesContainer: {
-    display: 'flex', gap: 8, alignItems: 'center',
+    display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10
   },
   phase: (active, completed) => ({
-    flex: 1, height: 6, borderRadius: 3,
-    background: completed ? '#10b981' : active ? '#f59e0b' : 'rgba(255,255,255,0.1)',
-    transition: 'all .5s ease', position: 'relative',
+    flex: 1, height: 4, borderRadius: 2,
+    background: completed ? 'linear-gradient(90deg, #10b981, #34d399)' : active ? 'linear-gradient(90deg, #6366f1, #818cf8)' : 'rgba(255,255,255,0.05)',
+    transition: 'all .6s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative',
     overflow: 'hidden',
+    boxShadow: active ? '0 0 10px rgba(99,102,241,0.3)' : 'none',
   }),
-  phaseActive: {
-    '&::after': {
-      content: '""', position: 'absolute', inset: 0,
-      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-      animation: 'shimmer 2s infinite',
-    },
-  },
   phaseLabels: {
-    display: 'flex', justifyContent: 'space-between', marginTop: 8,
+    display: 'flex', justifyContent: 'space-between', marginBottom: 20
   },
-  phaseLabel: {
-    fontSize: '.7rem', color: '#64748b', fontWeight: 600,
-    textTransform: 'uppercase', letterSpacing: '.03em',
-  },
+  phaseLabel: (active, completed) => ({
+    fontSize: '.62rem', 
+    color: completed ? '#10b981' : active ? '#a5b4fc' : '#475569', 
+    fontWeight: (active || completed) ? 800 : 500,
+    textTransform: 'uppercase', letterSpacing: '.05em',
+    transition: 'all .3s ease'
+  }),
   agentStatus: {
-    marginTop: 16, padding: 12, background: 'rgba(255,255,255,0.02)',
-    borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)',
+    marginTop: 8, padding: '14px 16px', background: 'rgba(255,255,255,0.02)',
+    borderRadius: 14, border: '1px solid rgba(255,255,255,0.05)',
+    background: 'linear-gradient(145deg, rgba(255,255,255,0.03) 0%, transparent 100%)',
   },
   agentStatusTitle: {
-    fontSize: '.75rem', color: '#64748b', marginBottom: 8, fontWeight: 600,
+    fontSize: '.65rem', color: '#64748b', marginBottom: 12, fontWeight: 800,
+    textTransform: 'uppercase', letterSpacing: '.1em'
   },
   agentItems: {
-    display: 'flex', flexWrap: 'wrap', gap: 6,
+    display: 'flex', flexWrap: 'wrap', gap: 8,
   },
   agentBadge: (status) => ({
-    padding: '4px 8px', borderRadius: 6, fontSize: '.7rem', fontWeight: 700,
-    textTransform: 'uppercase', letterSpacing: '.03em',
+    padding: '5px 10px', borderRadius: 8, fontSize: '.65rem', fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '.05em',
+    transition: 'all .3s cubic-bezier(0.4, 0, 0.2, 1)',
+    cursor: 'default',
     ...(status === 'running' ? {
-      background: 'rgba(245,158,11,.15)', color: '#f59e0b',
-      border: '1px solid rgba(245,158,11,.3)',
-      animation: 'pulse 2s infinite',
+      background: 'rgba(99,102,241,.15)', color: '#818cf8',
+      border: '1px solid rgba(99,102,241,.3)',
+      boxShadow: '0 0 12px rgba(99,102,241,0.2)',
     } : status === 'done' ? {
-      background: 'rgba(16,185,129,.15)', color: '#10b981',
-      border: '1px solid rgba(16,185,129,.3)',
+      background: 'rgba(16,185,129,.12)', color: '#34d399',
+      border: '1px solid rgba(16,185,129,.25)',
     } : status === 'error' ? {
-      background: 'rgba(239,68,68,.15)', color: '#ef4444',
-      border: '1px solid rgba(239,68,68,.3)',
+      background: 'rgba(239,68,68,.12)', color: '#f87171',
+      border: '1px solid rgba(239,68,68,.25)',
     } : {
-      background: 'rgba(99,102,241,.08)', color: '#6366f1',
-      border: '1px solid rgba(99,102,241,.2)',
+      background: 'rgba(255,255,255,0.03)', color: '#475569',
+      border: '1px solid rgba(255,255,255,0.05)',
     }),
   }),
 }
@@ -75,10 +77,6 @@ export default function AgentProgressBar({ agentStates, status }) {
   const [phaseProgress, setPhaseProgress] = useState([0, 0, 0, 0, 0])
 
   useEffect(() => {
-    // Calculate current phase based on agent states
-    const runningAgents = Object.entries(agentStates).filter(([_, state]) => state === 'running')
-    
-    // Determine which phase we're in
     let newPhase = 0
     let newProgress = [0, 0, 0, 0, 0]
 
@@ -87,8 +85,10 @@ export default function AgentProgressBar({ agentStates, status }) {
       const phaseDone = phaseAgents.filter(agent => agentStates[agent] === 'done').length
       const phaseRunning = phaseAgents.filter(agent => agentStates[agent] === 'running').length
       
-      if (phaseRunning > 0) {
+      if (phaseRunning > 0 || (phaseDone > 0 && phaseDone < phaseAgents.length)) {
         newPhase = index
+      } else if (phaseDone === phaseAgents.length && index >= newPhase) {
+        newPhase = Math.min(index + 1, PHASES.length - 1)
       }
       
       newProgress[index] = (phaseDone / phaseAgents.length) * 100
@@ -104,51 +104,56 @@ export default function AgentProgressBar({ agentStates, status }) {
 
   return (
     <div style={s.progressContainer}>
-      <div style={s.progressTitle}>📊 Trip Planning Progress</div>
+      <div style={s.progressTitle}>
+        <span>System Traversal</span>
+        <span style={{color: '#475569'}}>{Math.round(phaseProgress.reduce((a,b)=>a+b,0)/5)}%</span>
+      </div>
       
       <div style={s.phasesContainer}>
         {PHASES.map((phase, index) => (
-          <div
+          <motion.div
             key={phase.id}
-            style={{
-              ...s.phase(index === currentPhase, phaseProgress[index] === 100),
-              ...(index === currentPhase && s.phaseActive)
+            initial={false}
+            animate={{
+              background: phaseProgress[index] === 100 
+                ? 'linear-gradient(90deg, #10b981, #34d399)' 
+                : index === currentPhase 
+                  ? ['linear-gradient(90deg, #6366f1, #818cf8)', 'linear-gradient(90deg, #818cf8, #6366f1)'] 
+                  : 'rgba(255,255,255,0.05)'
             }}
+            transition={{
+              background: { repeat: index === currentPhase ? Infinity : 0, duration: 2, ease: "linear" }
+            }}
+            style={s.phase(index === currentPhase, phaseProgress[index] === 100)}
           />
         ))}
       </div>
 
       <div style={s.phaseLabels}>
         {PHASES.map((phase, index) => (
-          <div key={phase.id} style={s.phaseLabel}>
+          <div key={phase.id} style={s.phaseLabel(index === currentPhase, phaseProgress[index] === 100)}>
             {phase.name}
           </div>
         ))}
       </div>
 
       <div style={s.agentStatus}>
-        <div style={s.agentStatusTitle}>🤖 Agent Status</div>
+        <div style={s.agentStatusTitle}>Active Nodes</div>
         <div style={s.agentItems}>
           {PHASES.flatMap(phase => 
             phase.agents.map(agentId => (
-              <div key={agentId} style={s.agentBadge(getAgentStatus(agentId))}>
+              <motion.div 
+                key={agentId} 
+                animate={getAgentStatus(agentId) === 'running' ? { scale: [1, 1.05, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 2 }}
+                style={s.agentBadge(getAgentStatus(agentId))}
+              >
                 {agentId.replace('_agent', '').replace('_', ' ')}
-              </div>
+              </motion.div>
             ))
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
-        }
-      `}</style>
     </div>
   )
 }

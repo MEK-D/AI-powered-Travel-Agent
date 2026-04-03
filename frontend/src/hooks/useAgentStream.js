@@ -60,7 +60,20 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     setScraped(prev => {
       const next = { ...prev }
       for (const [k, v] of Object.entries(incoming)) {
-        next[k] = Array.isArray(prev[k]) && Array.isArray(v) ? [...prev[k], ...v] : v
+        if (Array.isArray(v)) {
+          const existing = prev[k] || []
+          // Deduplicate by ID or Name if available, otherwise just append and filter
+          const merged = [...existing, ...v]
+          const seen = new Set()
+          next[k] = merged.filter(item => {
+            const id = item.id || item.flight_id || item.hotel_name || item.train_name || item.name || JSON.stringify(item)
+            if (seen.has(id)) return false
+            seen.add(id)
+            return true
+          })
+        } else {
+          next[k] = v
+        }
       }
       return next
     })
@@ -105,6 +118,11 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       if (d.is_done || nextNodes.length === 0) {
         setIsDone(true)
         setStatus('done')
+        setAgentStates(prev => {
+          const next = { ...prev }
+          Object.keys(next).forEach(k => { if (next[k] === 'running') next[k] = 'done' })
+          return next
+        })
         addLog('🎉 Trip planning complete!')
         es.close()
       } else if (nextNodes.includes('orchestrator_hitl')) {

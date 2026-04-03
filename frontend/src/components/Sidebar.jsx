@@ -2,54 +2,66 @@ import { useRef, useEffect, useMemo } from 'react'
 import AgentItem from './AgentItem'
 import AnimatedLog from './AnimatedLog'
 import AgentProgressBar from './AgentProgressBar'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const s = {
   sidebar: {
-    width: 340, flexShrink: 0,
+    width: 320, flexShrink: 0,
     background: '#0d1117',
     borderRight: '1px solid rgba(255,255,255,0.07)',
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    boxShadow: '10px 0 30px rgba(0,0,0,0.3)',
   },
-  searchPanel: { padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.2)' },
-  label: { display: 'block', fontSize: '.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 10 },
-  textarea: {
-    width: '100%', background: '#0a0f1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14,
-    color: '#e2e8f0', fontFamily: "'Inter', sans-serif", fontSize: '.88rem',
-    padding: '14px 16px', resize: 'none', height: 110, outline: 'none', transition: 'all .3s',
-    '&:focus': { borderColor: '#6366f1', boxShadow: '0 0 0 2px rgba(99,102,241,0.2)' },
+  header: {
+    padding: '24px 22px',
+    borderBottom: '1px solid rgba(255,255,255,0.07)',
+    background: 'linear-gradient(180deg, rgba(99,102,241,0.05) 0%, transparent 100%)',
   },
-  btn: (disabled) => ({
-    width: '100%', marginTop: 12, padding: '14px 0', border: 'none', borderRadius: 14,
-    background: disabled ? 'rgba(99,102,241,0.25)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff', fontFamily: "'Outfit', sans-serif", fontSize: '.98rem', fontWeight: 700,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    boxShadow: disabled ? 'none' : '0 10px 20px rgba(99,102,241,0.25)',
-    transition: 'all .3s', opacity: disabled ? .7 : 1, letterSpacing: '.02em',
-  }),
-  progressPanel: { padding: '16px 22px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
-  agentsPanel: { padding: '22px 20px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 },
-  panelLabel: { fontSize: '.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 12, display: 'flex', justifyContent: 'space-between' },
-  phaseGroup: { marginBottom: 10 },
-  logPanel: { padding: '16px 22px', borderTop: '1px solid rgba(255,255,255,0.07)', height: 180, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.1)' },
-  historyPanel: { padding: '16px 22px', borderBottom: '1px solid rgba(255,255,255,0.07)', maxHeight: 200, overflowY: 'auto' },
-  historyItem: (active) => ({
-    padding: '10px 12px', borderRadius: 10, cursor: 'pointer', marginBottom: 6,
-    background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
-    border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
-    color: active ? '#fff' : '#94a3b8', fontSize: '.78rem', transition: 'all .2s',
-    display: 'flex', alignItems: 'center', gap: 10,
-    '&:hover': { background: 'rgba(255,255,255,0.03)' }
-  }),
+  label: { 
+    display: 'block', fontSize: '.65rem', fontWeight: 900, color: '#475569', 
+    textTransform: 'uppercase', letterSpacing: '.15em', marginBottom: 12 
+  },
   newChatBtn: {
-    width: '100%', marginBottom: 16, padding: '10px', border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 12, background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontSize: '.85rem',
-    fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-  }
+    width: '100%', padding: '12px', border: '1px solid rgba(99,102,241,0.2)',
+    borderRadius: 14, background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', fontSize: '.85rem',
+    fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+    transition: 'all .3s ease',
+    '&:hover': { background: 'rgba(99,102,241,0.2)', transform: 'translateY(-1px)' }
+  },
+  progressPanel: { padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
+  agentsPanel: { 
+    padding: '22px 20px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 24,
+    scrollbarWidth: 'none', msOverflowStyle: 'none',
+  },
+  panelLabel: { 
+    fontSize: '.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', 
+    letterSpacing: '.12em', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+  },
+  phaseGroup: { marginBottom: 16 },
+  phaseLabel: { 
+    fontSize: '.6rem', color: '#334155', marginBottom: 10, fontWeight: 900, 
+    display: 'flex', alignItems: 'center', gap: 8 
+  },
+  logPanel: { 
+    padding: '16px 22px', borderTop: '1px solid rgba(255,255,255,0.07)', 
+    height: 180, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.2)' 
+  },
+  historyPanel: { 
+    padding: '16px 22px', borderBottom: '1px solid rgba(255,255,255,0.07)', 
+    maxHeight: 220, overflowY: 'auto' 
+  },
+  historyItem: (active) => ({
+    padding: '10px 14px', borderRadius: 12, cursor: 'pointer', marginBottom: 8,
+    background: active ? 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1))' : 'transparent',
+    border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+    color: active ? '#fff' : '#94a3b8', fontSize: '.78rem', transition: 'all .25s cubic-bezier(0.4, 0, 0.2, 1)',
+    display: 'flex', alignItems: 'center', gap: 12,
+    '&:hover': { background: 'rgba(255,255,255,0.03)', transform: 'translateX(4px)' }
+  }),
 }
 
 export default function Sidebar({ 
-  prompt, setPrompt, onStart, agents, agentStates, logs, disabled, status,
+  agents, agentStates, logs, disabled, status,
   threadList, activeThreadId, onSelectThread, onNewChat 
 }) {
   const logRef = useRef(null)
@@ -69,39 +81,41 @@ export default function Sidebar({
 
   return (
     <aside style={s.sidebar}>
-      {/* User Input */}
-      <div style={s.searchPanel}>
-        <button style={s.newChatBtn} onClick={onNewChat}>
-          <span>➕</span> New Chat
-        </button>
-        <label style={s.label}>Trip Objective</label>
-        <textarea
-          style={s.textarea}
-          value={prompt}
-          onChange={e => setPrompt(e.target.value)}
-          placeholder="I want to explore India..."
-        />
-        <button style={s.btn(disabled)} onClick={onStart} disabled={disabled}>
-          {disabled ? '⏳ Agent Orchestration in Progress...' : '🚀 Launch Planning Agents'}
-        </button>
+      <div style={s.header}>
+        <motion.button 
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          style={s.newChatBtn} 
+          onClick={onNewChat}
+        >
+          <span style={{fontSize: '1rem'}}>✨</span> New Itinerary Plan
+        </motion.button>
       </div>
 
       {/* Chat History */}
       {threadList?.length > 0 && (
-        <div style={s.historyPanel}>
-          <div style={s.panelLabel}>Past Conversations</div>
-          {threadList.map(t => (
-            <div 
-              key={t.id} 
-              style={s.historyItem(t.id === activeThreadId)}
-              onClick={() => onSelectThread(t.id)}
-            >
-              <span style={{opacity:.5}}>💬</span>
-              <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                {t.id.substring(0, 18)}...
-              </span>
-            </div>
-          ))}
+        <div style={s.historyPanel} className="custom-scrollbar">
+          <div style={s.panelLabel}>Recent Expeditions</div>
+          <AnimatePresence>
+            {threadList.map((t, i) => (
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                key={t.id} 
+                style={s.historyItem(t.id === activeThreadId)}
+                onClick={() => onSelectThread(t.id)}
+              >
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%', 
+                  background: t.id === activeThreadId ? '#6366f1' : 'rgba(255,255,255,0.1)'
+                }} />
+                <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight: t.id === activeThreadId ? 600 : 400}}>
+                   Plan {t.id.substring(0, 8)}
+                </span>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
 
@@ -111,16 +125,29 @@ export default function Sidebar({
       </div>
 
       {/* Agents System */}
-      <div style={s.agentsPanel}>
+      <div style={s.agentsPanel} className="custom-scrollbar">
         <div>
           <div style={s.panelLabel}>
-            <span>Network Status</span>
-            {status === 'running' && <span style={{ color: '#10b981' }}>● ONLINE</span>}
+            <span>Agent Neural Network</span>
+            {status === 'running' && (
+              <motion.span 
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                style={{ color: '#10b981', fontSize: '.65rem', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <div style={{width: 6, height: 6, borderRadius: '50%', background: '#10b981'}} />
+                PROCESSING
+              </motion.span>
+            )}
           </div>
           
           {Object.keys(agentsByPhase).map(phase => (
             <div key={phase} style={s.phaseGroup}>
-              <div style={{ fontSize: '.6rem', color: '#475569', marginBottom: 8, fontWeight: 900 }}>PHASE {phase}</div>
+              <div style={s.phaseLabel}>
+                <div style={{height: 1, flex: 1, background: 'rgba(255,255,255,0.03)'}} />
+                <span>PHASE {phase}</span>
+                <div style={{height: 1, flex: 1, background: 'rgba(255,255,255,0.03)'}} />
+              </div>
               {agentsByPhase[phase].map(a => (
                 <AgentItem key={a.id} agent={a} state={agentStates[a.id] || 'idle'} />
               ))}

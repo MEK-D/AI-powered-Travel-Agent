@@ -19,7 +19,6 @@ const AGENT_META = [
 ]
 
 export default function App() {
-  const [prompt, setPrompt]               = useState('')
   const [activeTab, setActiveTab]         = useState(1)
   const [selectedFlight, setSelectedFlight] = useState(null)
   const [selectedHotel, setSelectedHotel]   = useState(null)
@@ -35,7 +34,19 @@ export default function App() {
 
   useEffect(() => {
     fetchThreads()
-  }, [fetchThreads])
+    const savedThreadId = localStorage.getItem('travel_agent_thread_id')
+    if (savedThreadId) {
+      loadThread(savedThreadId)
+    }
+  }, [fetchThreads, loadThread])
+
+  useEffect(() => {
+    if (threadId) {
+      localStorage.setItem('travel_agent_thread_id', threadId)
+    } else {
+      localStorage.removeItem('travel_agent_thread_id')
+    }
+  }, [threadId])
 
   const handleStart = useCallback(async (promptVal, tripDetails) => {
     // If we're already running or no prompt, return
@@ -69,8 +80,8 @@ export default function App() {
     reset()
     setSelectedFlight(null)
     setSelectedHotel(null)
-    setPrompt('')
     setActiveTab(0)
+    localStorage.removeItem('travel_agent_thread_id')
   }, [reset])
 
   const handleSelectThread = useCallback((tid) => {
@@ -132,9 +143,6 @@ export default function App() {
       )}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar
-          prompt={prompt}
-          setPrompt={setPrompt}
-          onStart={() => handleStart(prompt)}
           agents={AGENT_META}
           agentStates={agentStates}
           logs={logs}

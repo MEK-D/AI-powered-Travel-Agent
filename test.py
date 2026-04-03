@@ -204,6 +204,8 @@ def orchestrator_hitl(state: TripState) -> dict:
 
     if action == "approved":
         return {"hitl_action": "approved", "last_approved_phase": "orchestrator", "human_feedback": "", "messages": new_msgs}
+    elif action == "cancelled":
+        return {"hitl_action": "cancelled", "feedback_route": "stop", "messages": new_msgs}
     else:
         print(f"💬 Orchestrator feedback received: {decision}")
         return {
@@ -236,6 +238,8 @@ def phase1_hitl(state: TripState) -> dict:
 
     if action == "approved":
         return {"hitl_action": "approved", "last_approved_phase": "transport", "human_feedback": "", "messages": new_msgs}
+    elif action == "cancelled":
+        return {"hitl_action": "cancelled", "feedback_route": "stop", "messages": new_msgs}
     else:
         print(f"💬 Phase-1 feedback: {decision}")
         return {
@@ -269,6 +273,8 @@ def phase2_hitl(state: TripState) -> dict:
 
     if action == "approved":
         return {"hitl_action": "approved", "last_approved_phase": "basecamp", "human_feedback": "", "messages": new_msgs}
+    elif action == "cancelled":
+        return {"hitl_action": "cancelled", "feedback_route": "stop", "messages": new_msgs}
     else:
         print(f"💬 Phase-2 feedback: {decision}")
         return {
@@ -301,6 +307,8 @@ def phase3_hitl(state: TripState) -> dict:
 
     if action == "approved":
         return {"hitl_action": "approved", "last_approved_phase": "activities", "human_feedback": "", "messages": new_msgs}
+    elif action == "cancelled":
+        return {"hitl_action": "cancelled", "feedback_route": "stop", "messages": new_msgs}
     else:
         print(f"💬 Phase-3 feedback: {decision}")
         return {
@@ -331,6 +339,8 @@ def itinerary_hitl(state: TripState) -> dict:
 
     if action == "approved":
         return {"hitl_action": "approved", "last_approved_phase": "itinerary", "human_feedback": "", "messages": new_msgs}
+    elif action == "cancelled":
+        return {"hitl_action": "cancelled", "feedback_route": "stop", "messages": new_msgs}
     else:
         print(f"💬 Itinerary feedback: {decision}")
         return {"hitl_action": "feedback", "pending_feedback": str(decision), "messages": new_msgs}
@@ -505,6 +515,8 @@ def itinerary_feedback(state: TripState) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 def route_orchestrator_hitl(state):
     action = state.get("hitl_action", "approved")
+    if action == "cancelled":
+        return END
     if action == "feedback":
         return "orchestrator_feedback"
     return _phase1_sends(state)         # approved → fan-out phase 1
@@ -512,6 +524,8 @@ def route_orchestrator_hitl(state):
 
 def route_phase1_hitl(state):
     action = state.get("hitl_action", "approved")
+    if action == "cancelled":
+        return END
     if action == "feedback":
         return "phase1_feedback"
     return _phase2_sends(state)         # approved → fan-out phase 2
@@ -519,6 +533,8 @@ def route_phase1_hitl(state):
 
 def route_phase2_hitl(state):
     action = state.get("hitl_action", "approved")
+    if action == "cancelled":
+        return END
     if action == "feedback":
         return "phase2_feedback"
     print("DEBUG: Phase 2 Approved. Proceeding to Phase 3 Fan-out.")
@@ -527,6 +543,8 @@ def route_phase2_hitl(state):
 
 def route_phase3_hitl(state):
     action = state.get("hitl_action", "approved")
+    if action == "cancelled":
+        return END
     if action == "feedback":
         return "phase3_feedback"
     return "itinerary_agent"            # approved → itinerary
@@ -534,6 +552,8 @@ def route_phase3_hitl(state):
 
 def route_itinerary_hitl(state):
     action = state.get("hitl_action", "approved")
+    if action == "cancelled":
+        return END
     if action == "feedback":
         return "itinerary_feedback"
     return END                          # approved → done
