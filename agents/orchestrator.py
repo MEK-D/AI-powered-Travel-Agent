@@ -112,10 +112,7 @@ Your job is to decide which agents to activate based on their prompt:
 
 Rules:
 - Always include: itinerary_agent, hotel_agent, weather_agent, news_agent
-- If user says "by flight" → activate flight_agent
-- If user mentions train/rail → activate train_agent
-- If user mentions something like food/dining/eating/meal → activate restaurant_agent
-- DO NOT over-provision. If they are driving, do not call the flight agent.
+- Try to include all the relevant agents to create the best trip plan acoriding to whatever user says and its distance and dates and budget and so on, to eliminate any agent you should have a good reasoning for.
 - Fill out the specific tasks (preferences) ONLY for the agents you are activating.{feedback_clause}"""),
         ("human", "User Request: {user_request}, trip details: {trip_details}")
     ])

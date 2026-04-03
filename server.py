@@ -132,10 +132,17 @@ def index():
 
 @flask_app.route("/api/start", methods=["POST"])
 def start():
-    """Start a new trip planning session."""
+    """Start a new trip planning session or resume an existing one."""
     body        = request.get_json(force=True)
     user_prompt = body.get("prompt", "").strip()
     trip_details = body.get("trip_details")
+    thread_id    = body.get("thread_id")
+    
+    if not thread_id:
+        thread_id = str(uuid.uuid4())
+    
+    # If thread exists and we have no prompt, we might just be connecting
+    # But usually start is for a NEW prompt.
     
     if not trip_details:
         trip_details = {
@@ -149,7 +156,6 @@ def start():
     if not user_prompt:
         return jsonify({"error": "prompt required"}), 400
 
-    thread_id = str(uuid.uuid4())
     q = queue.Queue()
     _sessions[thread_id] = q
 
@@ -162,6 +168,7 @@ def start():
         "last_approved_phase": "",
         "hitl_action":         "approved",
         "scraped_data":        {},
+        "messages":            [{"role": "user", "content": user_prompt}],
     }
     t = threading.Thread(target=_run_graph, args=(thread_id, initial_state, q), daemon=True)
     t.start()
@@ -244,6 +251,66 @@ def get_state(thread_id: str):
             for intr in getattr(task, "interrupts", []):
                 interrupts.append(intr.value)
         return jsonify({**snap.values, "interrupt_payloads": interrupts})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@flask_app.route("/api/threads", methods=["GET"])
+def list_threads():
+    """List all unique thread IDs from the checkpointer."""
+    try:
+        threads = []
+        seen = set()
+        # Use an empty config to list all checkpoints
+        # checkpointer.list returns an iterator of CheckpointTuple
+        for checkpoint in checkpointer.list(None):
+            config = checkpoint.config
+            if not config or "configurable" not in config:
+                continue
+            
+            tid = config["configurable"].get("thread_id")
+            if tid and tid not in seen:
+                seen.add(tid)
+                threads.append({
+                    "id": tid,
+                    "updated_at": checkpoint.metadata.get("ts") if checkpoint.metadata else None
+                })
+        
+        threads.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
+        return jsonify({"threads": threads})
+    except Exception as e:
+        print(f"Error listing threads: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+        
+        # Sort by updated_at if possible
+        threads.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
+        return jsonify({"threads": threads})
+    except Exception as e:
+        print(f"Error listing threads: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@flask_app.route("/api/threads/<thread_id>", methods=["GET"])
+def get_thread_history(thread_id: str):
+    """Retrieve history (messages) and full state for a thread."""
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        snap = graph_app.get_state(config)
+        if not snap.values:
+            return jsonify({"error": "Thread not found"}), 404
+            
+        interrupts = []
+        for task in (snap.tasks or []):
+            for intr in getattr(task, "interrupts", []):
+                interrupts.append(intr.value)
+        
+        return jsonify({
+            "thread_id": thread_id,
+            "state": snap.values,
+            "interrupt_payloads": interrupts,
+            "messages": snap.values.get("messages", [])
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

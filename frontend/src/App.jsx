@@ -4,6 +4,7 @@ import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import MainPanel from './components/MainPanel'
 import { useAgentStream } from './hooks/useAgentStream'
+import { useEffect } from 'react'
 
 const AGENT_META = [
   { id: 'orchestrator',     name: 'Orchestrator',      icon: '🧠', sub: 'Plans & routes tasks',    phase: 0 },
@@ -27,9 +28,14 @@ export default function App() {
   const {
     threadId, status, error, hitl, logs, agentStates, scraped, timeline,
     phase1Done, phase2Done, phase3Done, isDone, finalItinerary,
-    startSession, approve, resume, reset, retry,
+    messages, threadList,
+    startSession, approve, resume, reset, retry, fetchThreads, loadThread,
   } = useAgentStream({ onFlights: f => !selectedFlight && setSelectedFlight(f[0] || null),
                        onHotels:  h => !selectedHotel  && setSelectedHotel (h[0] || null) })
+
+  useEffect(() => {
+    fetchThreads()
+  }, [fetchThreads])
 
   const handleStart = useCallback(async (promptVal, tripDetails) => {
     // If we're already running or no prompt, return
@@ -63,8 +69,14 @@ export default function App() {
     reset()
     setSelectedFlight(null)
     setSelectedHotel(null)
+    setPrompt('')
     setActiveTab(0)
   }, [reset])
+
+  const handleSelectThread = useCallback((tid) => {
+    loadThread(tid)
+    setActiveTab(1) // Usually start with flights or general view
+  }, [loadThread])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -128,6 +140,10 @@ export default function App() {
           logs={logs}
           disabled={status === 'running'}
           status={status}
+          threadList={threadList}
+          activeThreadId={threadId}
+          onSelectThread={handleSelectThread}
+          onNewChat={handleResetAll}
         />
         <MainPanel
           activeTab={activeTab}

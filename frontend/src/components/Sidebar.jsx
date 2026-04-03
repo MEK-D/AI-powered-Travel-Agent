@@ -31,10 +31,27 @@ const s = {
   agentsPanel: { padding: '22px 20px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 },
   panelLabel: { fontSize: '.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 12, display: 'flex', justifyContent: 'space-between' },
   phaseGroup: { marginBottom: 10 },
-  logPanel: { padding: '16px 22px', borderTop: '1px solid rgba(255,255,255,0.07)', height: 220, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.1)' },
+  logPanel: { padding: '16px 22px', borderTop: '1px solid rgba(255,255,255,0.07)', height: 180, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.1)' },
+  historyPanel: { padding: '16px 22px', borderBottom: '1px solid rgba(255,255,255,0.07)', maxHeight: 200, overflowY: 'auto' },
+  historyItem: (active) => ({
+    padding: '10px 12px', borderRadius: 10, cursor: 'pointer', marginBottom: 6,
+    background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
+    border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+    color: active ? '#fff' : '#94a3b8', fontSize: '.78rem', transition: 'all .2s',
+    display: 'flex', alignItems: 'center', gap: 10,
+    '&:hover': { background: 'rgba(255,255,255,0.03)' }
+  }),
+  newChatBtn: {
+    width: '100%', marginBottom: 16, padding: '10px', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 12, background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontSize: '.85rem',
+    fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+  }
 }
 
-export default function Sidebar({ prompt, setPrompt, onStart, agents, agentStates, logs, disabled, status }) {
+export default function Sidebar({ 
+  prompt, setPrompt, onStart, agents, agentStates, logs, disabled, status,
+  threadList, activeThreadId, onSelectThread, onNewChat 
+}) {
   const logRef = useRef(null)
 
   useEffect(() => {
@@ -54,6 +71,9 @@ export default function Sidebar({ prompt, setPrompt, onStart, agents, agentState
     <aside style={s.sidebar}>
       {/* User Input */}
       <div style={s.searchPanel}>
+        <button style={s.newChatBtn} onClick={onNewChat}>
+          <span>➕</span> New Chat
+        </button>
         <label style={s.label}>Trip Objective</label>
         <textarea
           style={s.textarea}
@@ -65,6 +85,25 @@ export default function Sidebar({ prompt, setPrompt, onStart, agents, agentState
           {disabled ? '⏳ Agent Orchestration in Progress...' : '🚀 Launch Planning Agents'}
         </button>
       </div>
+
+      {/* Chat History */}
+      {threadList?.length > 0 && (
+        <div style={s.historyPanel}>
+          <div style={s.panelLabel}>Past Conversations</div>
+          {threadList.map(t => (
+            <div 
+              key={t.id} 
+              style={s.historyItem(t.id === activeThreadId)}
+              onClick={() => onSelectThread(t.id)}
+            >
+              <span style={{opacity:.5}}>💬</span>
+              <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                {t.id.substring(0, 18)}...
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Progress */}
       <div style={s.progressPanel}>
