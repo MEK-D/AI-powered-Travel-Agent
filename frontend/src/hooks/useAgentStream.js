@@ -34,6 +34,8 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   const [isDone,   setIsDone]           = useState(false)
   const [finalItinerary, setFinal]      = useState('')
   const [timeline, setTimeline]         = useState([])
+  const [messages, setMessages]         = useState([])
+  const [threadList, setThreadList]     = useState([])
   const esRef = useRef(null)
 
   const addLog = useCallback((msg) => {
@@ -161,7 +163,8 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           prompt: actualPrompt,
-          trip_details: tripDetails 
+          trip_details: tripDetails,
+          thread_id: threadId // Pass if we want to resume or reuse a Specific ID
         }),
       })
       if (!res.ok) {
@@ -171,7 +174,9 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       const data = await res.json()
       setThreadId(data.thread_id)
       addLog(`📡 Thread: ${data.thread_id.substring(0, 8)}...`)
+      setMessages(prev => [...prev, {role: 'user', content: actualPrompt}])
       openStream(data.thread_id)
+      fetchThreads() // Refresh list
     } catch (e) {
       setError(String(e?.message || e))
       setStatus('error')
@@ -226,8 +231,61 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     if (esRef.current) esRef.current.close()
     setThreadId(null); setStatus('idle'); setLogs([])
     setAgentStates({}); setScraped({}); setFinal(''); setHitl(null); setError(null)
-    setPhase1Done(false); setPhase2Done(false); setPhase3Done(false); setIsDone(false); setTimeline([])
+    setPhase1Done(false); setPhase2Done(false); setPhase3Done(false); setIsDone(false); setTimeline([]); setMessages([])
   }, [])
 
-  return { threadId, status, error, hitl, logs, agentStates, scraped, timeline, phase1Done, phase2Done, phase3Done, isDone, finalItinerary, startSession, approve, resume, reset, retry }
+  const fetchThreads = useCallback(async () => {
+    try {
+      const res = await fetch('/api/threads')
+      const data = await res.json()
+      if (data.threads) setThreadList(data.threads)
+    } catch (e) {
+      console.error("Failed to fetch threads", e)
+    }
+  }, [])
+
+  const loadThread = useCallback(async (tid) => {
+    reset()
+    setThreadId(tid)
+    setStatus('running')
+    addLog(`📂 Loading thread ${tid.substring(0,8)}...`)
+    try {
+      const res = await fetch(`/api/threads/${tid}`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      // Restore state
+      const s = data.state || {}
+      setMessages(data.messages || [])
+      setScraped(s.scraped_data || {})
+      setFinal(s.final_itinerary || '')
+      setTimeline(s.timeline || [])
+      setLastPrompt(s.user_request || '')
+      
+      if (data.interrupt_payloads?.length > 0) {
+        setHitl(data.interrupt_payloads[data.interrupt_payloads.length - 1])
+        setStatus('paused')
+        addLog('⏸️ Thread restored — awaiting your input')
+      } else if (s.final_itinerary) {
+        setStatus('done')
+        setIsDone(true)
+      } else {
+        setStatus('idle')
+      }
+      
+      // Infer agent states from status_log or timeline if needed
+      // For now just clear them
+      setAgentStates({})
+
+    } catch (e) {
+      setError(String(e))
+      setStatus('error')
+    }
+  }, [reset, addLog])
+
+  return { 
+    threadId, status, error, hitl, logs, agentStates, scraped, timeline, 
+    phase1Done, phase2Done, phase3Done, isDone, finalItinerary, messages, threadList,
+    startSession, approve, resume, reset, retry, fetchThreads, loadThread 
+  }
 }

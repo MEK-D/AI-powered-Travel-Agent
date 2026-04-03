@@ -20,4 +20,5 @@ class TripState(TypedDict):
     hitl_action:         str          # "approved" | "cancelled" | "feedback"
     final_itinerary:     str
     status_log:          Annotated[List[str], operator.add]
-    timeline:           Annotated[List[dict], operator.add]   # Agent-to-agent communication entries
+    timeline:           Annotated[List[dict], operator.add]   # Agent-to-agent communication entries
+    messages:           Annotated[List[dict], operator.add]   # Chat history for UI

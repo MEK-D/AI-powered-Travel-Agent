@@ -196,13 +196,20 @@ def orchestrator_hitl(state: TripState) -> dict:
     decision = interrupt(payload)
     action   = _classify(decision)
 
+    # Record AI's message and Human's response
+    new_msgs = [
+        {"role": "assistant", "content": payload["message"]},
+        {"role": "user", "content": str(decision)}
+    ]
+
     if action == "approved":
-        return {"hitl_action": "approved", "last_approved_phase": "orchestrator", "human_feedback": ""}
+        return {"hitl_action": "approved", "last_approved_phase": "orchestrator", "human_feedback": "", "messages": new_msgs}
     else:
         print(f"💬 Orchestrator feedback received: {decision}")
         return {
             "hitl_action":      "feedback",
             "pending_feedback": str(decision),
+            "messages":         new_msgs
         }
 
 
@@ -221,13 +228,20 @@ def phase1_hitl(state: TripState) -> dict:
     decision = interrupt(payload)
     action   = _classify(decision)
 
+    # Record AI's message and Human's response
+    new_msgs = [
+        {"role": "assistant", "content": payload["message"]},
+        {"role": "user", "content": str(decision)}
+    ]
+
     if action == "approved":
-        return {"hitl_action": "approved", "last_approved_phase": "transport", "human_feedback": ""}
+        return {"hitl_action": "approved", "last_approved_phase": "transport", "human_feedback": "", "messages": new_msgs}
     else:
         print(f"💬 Phase-1 feedback: {decision}")
         return {
             "hitl_action":  "feedback",
             "pending_feedback": str(decision),
+            "messages":         new_msgs
         }
 
 
@@ -247,13 +261,20 @@ def phase2_hitl(state: TripState) -> dict:
     decision = interrupt(payload)
     action   = _classify(decision)
 
+    # Record AI's message and Human's response
+    new_msgs = [
+        {"role": "assistant", "content": payload["message"]},
+        {"role": "user", "content": str(decision)}
+    ]
+
     if action == "approved":
-        return {"hitl_action": "approved", "last_approved_phase": "basecamp", "human_feedback": ""}
+        return {"hitl_action": "approved", "last_approved_phase": "basecamp", "human_feedback": "", "messages": new_msgs}
     else:
         print(f"💬 Phase-2 feedback: {decision}")
         return {
             "hitl_action":      "feedback",
             "pending_feedback": str(decision),
+            "messages":         new_msgs
         }
 
 
@@ -272,13 +293,20 @@ def phase3_hitl(state: TripState) -> dict:
     decision = interrupt(payload)
     action   = _classify(decision)
 
+    # Record AI's message and Human's response
+    new_msgs = [
+        {"role": "assistant", "content": payload["message"]},
+        {"role": "user", "content": str(decision)}
+    ]
+
     if action == "approved":
-        return {"hitl_action": "approved", "last_approved_phase": "activities", "human_feedback": ""}
+        return {"hitl_action": "approved", "last_approved_phase": "activities", "human_feedback": "", "messages": new_msgs}
     else:
         print(f"💬 Phase-3 feedback: {decision}")
         return {
             "hitl_action":      "feedback",
             "pending_feedback": str(decision),
+            "messages":         new_msgs
         }
 
 
@@ -295,11 +323,17 @@ def itinerary_hitl(state: TripState) -> dict:
     decision = interrupt(payload)
     action   = _classify(decision)
 
+    # Record AI's message and Human's response
+    new_msgs = [
+        {"role": "assistant", "content": payload["message"]},
+        {"role": "user", "content": str(decision)}
+    ]
+
     if action == "approved":
-        return {"hitl_action": "approved", "last_approved_phase": "itinerary", "human_feedback": ""}
+        return {"hitl_action": "approved", "last_approved_phase": "itinerary", "human_feedback": "", "messages": new_msgs}
     else:
         print(f"💬 Itinerary feedback: {decision}")
-        return {"hitl_action": "feedback", "pending_feedback": str(decision)}
+        return {"hitl_action": "feedback", "pending_feedback": str(decision), "messages": new_msgs}
 
 
 def orchestrator_feedback(state: TripState) -> dict:
