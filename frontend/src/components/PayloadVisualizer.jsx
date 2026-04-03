@@ -247,6 +247,30 @@ export default function PayloadVisualizer({ payload }) {
     )
   }
 
+  if (phase === 'itinerary') {
+    return (
+      <div style={s.container}>
+        <div style={s.section}>
+          <div style={s.label}>🗺️ Final Itinerary Draft</div>
+          <div style={{
+            ...s.card,
+            padding: 20,
+            background: 'rgba(99,102,241,0.03)',
+            border: '1px solid rgba(99,102,241,0.1)',
+            fontFamily: "'Courier New', monospace",
+            fontSize: '.85rem',
+            lineHeight: 1.6,
+            color: '#e2e8f0',
+            whiteSpace: 'pre',
+            overflowX: 'auto'
+          }}>
+            {data.itinerary}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={s.container}>
        <pre style={{...s.fieldValue, fontSize: '.7rem', opacity: 0.7}}>{JSON.stringify(data, null, 2)}</pre>

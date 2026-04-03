@@ -83,6 +83,10 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
             if timeline:
                 _push(q, "timeline_update", {"timeline": timeline})
             
+            itinerary = chunk.get("final_itinerary")
+            if itinerary:
+                _push(q, "itinerary_update", {"itinerary": itinerary})
+            
             # Debug: what keys moved in this chunk?
             k = list(chunk.keys())
             if "status_log" in k or "scraped_data" in k:

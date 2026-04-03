@@ -124,7 +124,7 @@ def _phase1_sends(state):
         Send(ag, {"agent_tasks": {ag: tasks.get(ag, {})}, "trip_details": trip, "human_feedback": hf})
         for ag in ["flight_agent", "train_agent"] if ag in required
     ]
-    return sends if sends else "phase1_collector"
+    return sends if sends else "skip_phase1"
 
 
 def _phase2_sends(state):
@@ -136,7 +136,7 @@ def _phase2_sends(state):
         Send(ag, {"agent_tasks": {ag: tasks.get(ag, {})}, "trip_details": trip, "human_feedback": hf})
         for ag in ["hotel_agent", "weather_agent", "news_agent"] if ag in required
     ]
-    return sends if sends else "phase2_collector"
+    return sends if sends else "skip_phase2"
 
 
 def _phase3_sends(state):
@@ -146,15 +146,13 @@ def _phase3_sends(state):
     hf       = state.get("human_feedback", "")
     
     sends = []
-    # Always include site_seeing in phase 3 if using this flow, 
-    # but check restaurant_agent specifically
     if "restaurant_agent" in required:
         sends.append(Send("restaurant_agent", {"agent_tasks": tasks, "trip_details": trip, "scraped_data": state.get("scraped_data"), "human_feedback": hf}))
     
-    # site_seeing is currently always included for experiences if we reached here
-    sends.append(Send("site_seeing_agent", {"agent_tasks": tasks, "trip_details": trip, "scraped_data": state.get("scraped_data"), "human_feedback": hf}))
+    if "site_seeing_agent" in required:
+        sends.append(Send("site_seeing_agent", {"agent_tasks": tasks, "trip_details": trip, "scraped_data": state.get("scraped_data"), "human_feedback": hf}))
     
-    return sends if sends else "phase3_collector"
+    return sends if sends else "skip_phase3"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,6 +174,20 @@ def phase3_collector(state):
     print("Phase 3 Collector: Activities data gathered.")
     tl = [{"id": str(uuid.uuid4()), "from": "phase3_collector", "to": "phase3_hitl", "message": "Collecting activities data for review."}]
     return {"status_log": ["Phase 3: Activities data collected."], "timeline": tl}
+
+
+# ── Skip Nodes ─────────────────────────────────────────────────────────────
+def skip_phase1(state):
+    print("⏩ Skipping Phase 1: No transport agents required.")
+    return {"status_log": ["Phase 1: Bypassed (No transport required)"]}
+
+def skip_phase2(state):
+    print("⏩ Skipping Phase 2: No basecamp agents required.")
+    return {"status_log": ["Phase 2: Bypassed (No basecamp required)"]}
+
+def skip_phase3(state):
+    print("⏩ Skipping Phase 3: No activities agents required.")
+    return {"status_log": ["Phase 3: Bypassed (No activities required)"]}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -629,6 +641,7 @@ _ALL_NODES = [
     "itinerary_agent", "itinerary_hitl",
     "itinerary_feedback",
     "road_agent",
+    "skip_phase1", "skip_phase2", "skip_phase3"
 ]
 
 workflow = StateGraph(TripState)
@@ -661,6 +674,9 @@ workflow.add_node("itinerary_agent",    itinerary_agent)
 workflow.add_node("itinerary_hitl",     itinerary_hitl)
 workflow.add_node("itinerary_feedback", itinerary_feedback)
 workflow.add_node("road_agent",         road_agent)
+workflow.add_node("skip_phase1",        skip_phase1)
+workflow.add_node("skip_phase2",        skip_phase2)
+workflow.add_node("skip_phase3",        skip_phase3)
 
 # ── edges ─────────────────────────────────────────────────────────────────────
 workflow.add_edge(START, "orchestrator")
@@ -668,12 +684,12 @@ workflow.add_edge("orchestrator", "orchestrator_hitl")
 
 workflow.add_conditional_edges(
     "orchestrator_hitl", route_orchestrator_hitl,
-    ["orchestrator_feedback", "orchestrator", "flight_agent", "train_agent", "phase1_collector", END],
+    ["orchestrator_feedback", "orchestrator", "flight_agent", "train_agent", "phase1_collector", "skip_phase1", END],
 )
 
 workflow.add_conditional_edges(
     "orchestrator_feedback", route_orchestrator_feedback,
-    ["orchestrator", "flight_agent", "train_agent", "phase1_collector", END],
+    ["orchestrator", "flight_agent", "train_agent", "phase1_collector", "skip_phase1", END],
 )
 
 workflow.add_edge("flight_agent",     "phase1_collector")
@@ -682,12 +698,12 @@ workflow.add_edge("phase1_collector", "phase1_hitl")
 
 workflow.add_conditional_edges(
     "phase1_hitl", route_phase1_hitl,
-    ["phase1_feedback", "flight_agent", "train_agent", "phase1_collector", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", "orchestrator", END],
+    ["phase1_feedback", "flight_agent", "train_agent", "phase1_collector", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", "orchestrator", "skip_phase1", "skip_phase2", END],
 )
 
 workflow.add_conditional_edges(
     "phase1_feedback", route_phase1_feedback,
-    ["orchestrator", "flight_agent", "train_agent", "phase1_collector", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", END],
+    ["orchestrator", "flight_agent", "train_agent", "phase1_collector", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", "skip_phase1", "skip_phase2", END],
 )
 
 workflow.add_edge("hotel_agent",      "phase2_collector")
@@ -697,12 +713,12 @@ workflow.add_edge("phase2_collector", "phase2_hitl")
 
 workflow.add_conditional_edges(
     "phase2_hitl", route_phase2_hitl,
-    ["phase2_feedback", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", "restaurant_agent", "site_seeing_agent", "orchestrator", END],
+    ["phase2_feedback", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", "restaurant_agent", "site_seeing_agent", "orchestrator", "skip_phase2", "skip_phase3", END],
 )
 
 workflow.add_conditional_edges(
     "phase2_feedback", route_phase2_feedback,
-    ["orchestrator", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", "restaurant_agent", "site_seeing_agent", END],
+    ["orchestrator", "hotel_agent", "weather_agent", "news_agent", "phase2_collector", "restaurant_agent", "site_seeing_agent", "skip_phase2", "skip_phase3", END],
 )
 
 workflow.add_edge("restaurant_agent",  "phase3_collector")
@@ -711,12 +727,12 @@ workflow.add_edge("phase3_collector",  "phase3_hitl")
 
 workflow.add_conditional_edges(
     "phase3_hitl", route_phase3_hitl,
-    ["phase3_feedback", "restaurant_agent", "site_seeing_agent", "phase3_collector", "itinerary_agent", "orchestrator", END],
+    ["phase3_feedback", "restaurant_agent", "site_seeing_agent", "phase3_collector", "itinerary_agent", "orchestrator", "skip_phase3", END],
 )
 
 workflow.add_conditional_edges(
     "phase3_feedback", route_phase3_feedback,
-    ["orchestrator", "restaurant_agent", "site_seeing_agent", "phase3_collector", "itinerary_agent", END],
+    ["orchestrator", "restaurant_agent", "site_seeing_agent", "phase3_collector", "itinerary_agent", "skip_phase3", END],
 )
 
 workflow.add_edge("itinerary_agent", "itinerary_hitl")
@@ -730,6 +746,11 @@ workflow.add_conditional_edges(
     "itinerary_feedback", route_itinerary_feedback,
     ["orchestrator", "itinerary_agent", END],
 )
+
+# ── Add edges from Skip nodes to the start of the next phase ──────────────────
+workflow.add_conditional_edges("skip_phase1", _phase2_sends, ["hotel_agent", "weather_agent", "news_agent", "phase2_collector", "skip_phase2"])
+workflow.add_conditional_edges("skip_phase2", _phase3_sends, ["restaurant_agent", "site_seeing_agent", "phase3_collector", "skip_phase3"])
+workflow.add_edge("skip_phase3", "itinerary_agent")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

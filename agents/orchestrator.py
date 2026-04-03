@@ -111,8 +111,10 @@ Your job is to decide which agents to activate based on their prompt:
 [flight_agent, train_agent, road_agent, hotel_agent, restaurant_agent, weather_agent, news_agent, itinerary_agent]
 
 Rules:
-- Always include: itinerary_agent, hotel_agent, weather_agent, news_agent
-- Try to include all the relevant agents to create the best trip plan acoriding to whatever user says and its distance and dates and budget and so on, to eliminate any agent you should have a good reasoning for.
+- Always include: itinerary_agent, weather_agent, news_agent, site_seeing_agent
+-Try to include one of travel agent (flight_agent, train_agent, road_agent), exclude only when user says explicitly that he dont want any travel agent from you.
+-Try to include restaurant_agent if not excluded explicitly by user
+-Try to include hotel_agent if not excluded explicitly by user
 - Fill out the specific tasks (preferences) ONLY for the agents you are activating.{feedback_clause}"""),
         ("human", "User Request: {user_request}, trip details: {trip_details}")
     ])
