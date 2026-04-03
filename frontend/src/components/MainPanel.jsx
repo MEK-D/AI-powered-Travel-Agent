@@ -6,6 +6,7 @@ import ItineraryPanel from './ItineraryPanel'
 import ChatPanel from './ChatPanel'
 import HitlPanel from './HitlPanel'
 import ExecutionFlow from './ExecutionFlow'
+import TripForm from './TripForm'
 
 const s = {
   mainPanel: {
@@ -49,6 +50,7 @@ export default function MainPanel({
   finalItinerary,
   onApprove,
   onHitlSend,
+  onStartSession,
   hitl,
   selectedFlight,
   setSelectedFlight,
@@ -58,6 +60,16 @@ export default function MainPanel({
   agentStates,
   timeline,
 }) {
+  if (status === 'idle') {
+    return (
+      <main style={s.mainPanel}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 20px', display: 'flex', alignItems: 'center' }}>
+          <TripForm onStart={onStartSession} />
+        </div>
+      </main>
+    )
+  }
+
   if (status === 'paused' && hitl) {
     return (
       <main style={s.mainPanel}>

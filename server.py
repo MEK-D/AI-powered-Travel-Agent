@@ -19,7 +19,7 @@ except ImportError:
     except ImportError:
         # Fallback to memory checkpointer
         USE_POSTGRES = False
-        print("⚠️ PostgreSQL checkpointer not found, using memory checkpointer")
+        print("PostgreSQL checkpointer not found, using memory checkpointer")
 
 from langgraph.types import Command
 
@@ -36,19 +36,19 @@ if USE_POSTGRES:
         )
         checkpointer = PostgresSaver(connection_pool)
         checkpointer.setup()
-        print("✅ PostgreSQL checkpointer initialized")
+        print("PostgreSQL checkpointer initialized")
     except Exception as e:
-        print(f"⚠️ Failed to initialize PostgreSQL: {e}")
-        print("🔄 Falling back to memory checkpointer")
+        print(f"Failed to initialize PostgreSQL: {e}")
+        print("Falling back to memory checkpointer")
         # Create a simple memory checkpointer
         from langgraph.checkpoint.memory import MemorySaver
         checkpointer = MemorySaver()
-        print("✅ Memory checkpointer initialized")
+        print("Memory checkpointer initialized")
 else:
-    print("🔄 Using memory checkpointer")
+    print("Using memory checkpointer")
     from langgraph.checkpoint.memory import MemorySaver
     checkpointer = MemorySaver()
-    print("✅ Memory checkpointer initialized")
+    print("Memory checkpointer initialized")
 
 graph_app = get_compiled_graph(checkpointer)
 
@@ -129,8 +129,10 @@ def start():
     """Start a new trip planning session."""
     body        = request.get_json(force=True)
     user_prompt = body.get("prompt", "").strip()
-    # trip_details = body.get("trip_details", {})
-    trip_details = {
+    trip_details = body.get("trip_details")
+    
+    if not trip_details:
+        trip_details = {
             "origin":              "srinagar",
             "destination":         "goa",
             "start_date":          "2026-04-10",
