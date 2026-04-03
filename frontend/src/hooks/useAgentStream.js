@@ -133,7 +133,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     }
   }, [addLog, mergeScraped])
 
-  const startSession = useCallback(async (prompt) => {
+  const startSession = useCallback(async (prompt, tripDetails) => {
     const actualPrompt = prompt || lastPrompt
     if (!actualPrompt) return
     setLastPrompt(actualPrompt)
@@ -147,7 +147,10 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       const res  = await fetch('/api/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: actualPrompt }),
+        body: JSON.stringify({ 
+          prompt: actualPrompt,
+          trip_details: tripDetails 
+        }),
       })
       if (!res.ok) {
         const t = await res.text()

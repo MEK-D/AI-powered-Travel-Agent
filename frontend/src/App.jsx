@@ -29,14 +29,15 @@ export default function App() {
   } = useAgentStream({ onFlights: f => !selectedFlight && setSelectedFlight(f[0] || null),
                        onHotels:  h => !selectedHotel  && setSelectedHotel (h[0] || null) })
 
-  const handleStart = useCallback(async () => {
-    if (!prompt.trim()) return
+  const handleStart = useCallback(async (promptVal, tripDetails) => {
+    // If we're already running or no prompt, return
+    if (!promptVal.trim()) return
     reset()
     setSelectedFlight(null)
     setSelectedHotel(null)
     setActiveTab(0)
-    await startSession(prompt)
-  }, [prompt, startSession, reset])
+    await startSession(promptVal, tripDetails)
+  }, [startSession, reset])
 
   const handleApprove = useCallback(async (phase) => {
     await approve(phase)
@@ -116,7 +117,7 @@ export default function App() {
         <Sidebar
           prompt={prompt}
           setPrompt={setPrompt}
-          onStart={handleStart}
+          onStart={() => handleStart(prompt)}
           agents={AGENT_META}
           agentStates={agentStates}
           logs={logs}
@@ -133,6 +134,7 @@ export default function App() {
           finalItinerary={finalItinerary}
           onApprove={handleApprove}
           onHitlSend={handleHitlSend}
+          onStartSession={handleStart}
           hitl={hitl}
           selectedFlight={selectedFlight}
           setSelectedFlight={setSelectedFlight}
