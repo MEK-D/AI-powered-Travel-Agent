@@ -99,6 +99,11 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       if (data.timeline) setTimeline(data.timeline)
     })
 
+    es.addEventListener('itinerary_update', e => {
+      const data = JSON.parse(e.data);
+      if (data.itinerary) setFinal(data.itinerary);
+    })
+
     es.addEventListener('phase_complete', e => {
       const d = JSON.parse(e.data)
       console.log('🏁 SSE: phase_complete', d);
