@@ -68,11 +68,13 @@ def site_seeing_agent(state: dict) -> dict:
 
         response = requests.get("https://serpapi.com/search", params=params, timeout=15)
         results = response.json().get("local_results", [])[:10]
+        print(f"DEBUG: {dest_city} SerpApi results: {len(results)} found.")
 
         if not results:
             logs.append("⚠️ No sites found via Google Maps.")
             return {"status_log": logs}
 
+        print(f"🧠 {dest_city} LLM Evaluation starting...")
         eval_llm = llm.with_structured_output(SiteSelection)
         eval_prompt = ChatPromptTemplate.from_messages([
             ("system", f"You are a local tour guide. Pick the best 4 most famous or unique sites for a tourist stay. Provide practical tips and reasoning.{feedback_clause}"),
@@ -99,6 +101,7 @@ def site_seeing_agent(state: dict) -> dict:
                 "photo_url": s.photo_url
             })
             logs.append(f"✅ Site: {s.name} ({s.type_of_place})")
+            print(f"✅ Site Selected: {s.name}")
 
         tl = [{"id": str(uuid.uuid4()), "from": "site_seeing_agent", "to": "phase3_collector", "message": f"Found {len(sites_list)} top attractions."}]
         return {

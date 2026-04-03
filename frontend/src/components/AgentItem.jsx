@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const s = {
   item: {
     display: 'flex', alignItems: 'center', gap: 12,
-    padding: '12px 16px', marginBottom: 8,
+    padding: '12px 16px', marginBottom: 10,
     background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
-    borderRadius: 12, transition: 'all .3s',
+    borderRadius: 14, transition: 'all .3s',
+    position: 'relative', overflow: 'hidden',
   },
-  icon: { fontSize: '1.4rem' },
-  info: { flex: 1 },
+  icon: { fontSize: '1.4rem', zIndex: 2 },
+  info: { flex: 1, zIndex: 2 },
   name: {
     fontFamily: "'Outfit', sans-serif", fontSize: '.9rem', fontWeight: 700,
     color: '#e2e8f0', marginBottom: 2,
   },
   sub: { fontSize: '.75rem', color: '#64748b', lineHeight: 1.3 },
   status: {
-    padding: '4px 10px', borderRadius: 20, fontSize: '.7rem', fontWeight: 700,
-    textTransform: 'uppercase', letterSpacing: '.05em',
+    padding: '4px 10px', borderRadius: 20, fontSize: '.7rem', fontWeight: 800,
+    textTransform: 'uppercase', letterSpacing: '.05em', zIndex: 2,
   },
   statusRunning: {
     background: 'rgba(245,158,11,.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)',
@@ -28,66 +30,75 @@ const s = {
     background: 'rgba(239,68,68,.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,.3)',
   },
   statusIdle: {
-    background: 'rgba(99,102,241,.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,.2)',
+    background: 'rgba(255,255,255,.05)', color: '#94a3b8', border: '1px solid rgba(255,255,255,.1)',
   },
   pulse: {
-    width: 8, height: 8, borderRadius: '50%', background: '#f59e0b',
-    animation: 'pulse 2s infinite', marginRight: 4,
+    width: 6, height: 6, borderRadius: '50%', background: '#f59e0b',
+    marginRight: 6,
   },
+  glow: {
+    position: 'absolute', inset: 0,
+    background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.05), transparent)',
+    zIndex: 1,
+  }
 }
 
 const STATUS_CONFIG = {
-  running: { label: 'Running', style: s.statusRunning },
-  done: { label: 'Complete', style: s.statusDone },
-  error: { label: 'Error', style: s.statusError },
-  idle: { label: 'Idle', style: s.statusIdle },
+  running: { label: 'Active', style: s.statusRunning },
+  done:    { label: 'Ready',  style: s.statusDone },
+  error:   { label: 'Error',  style: s.statusError },
+  idle:    { label: 'Idle',   style: s.statusIdle },
 }
 
 export default function AgentItem({ agent, state }) {
-  const [isAnimating, setIsAnimating] = useState(false)
-
-  useEffect(() => {
-    if (state === 'running') {
-      setIsAnimating(true)
-    } else {
-      setIsAnimating(false)
-    }
-  }, [state])
-
   const statusConfig = STATUS_CONFIG[state] || STATUS_CONFIG.idle
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.04)' }}
       style={{
         ...s.item,
         ...(state === 'running' && {
-          background: 'rgba(245,158,11,.05)',
-          borderColor: 'rgba(245,158,11,.2)',
-          boxShadow: '0 0 20px rgba(245,158,11,.1)',
+          borderColor: 'rgba(245,158,11,.3)',
+          background: 'rgba(245,158,11,.03)',
         }),
+        ...(state === 'done' && {
+            borderColor: 'rgba(16,185,129,.2)',
+        })
       }}
     >
+      <AnimatePresence>
+        {state === 'running' && (
+          <motion.div
+            initial={{ x: '-100%' }}
+            animate={{ x: '100%' }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+            style={s.glow}
+          />
+        )}
+      </AnimatePresence>
+
       <div style={s.icon}>{agent.icon}</div>
       <div style={s.info}>
         <div style={s.name}>{agent.name}</div>
         <div style={s.sub}>{agent.sub}</div>
       </div>
+      
       <div style={{ ...s.status, ...statusConfig.style }}>
-        {state === 'running' && (
-          <>
-            <span style={s.pulse} />
-            <span style={{ display: 'inline-block', marginLeft: 4 }}>{statusConfig.label}</span>
-          </>
-        )}
-        {state !== 'running' && statusConfig.label}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+            {state === 'running' && (
+                <motion.div
+                    animate={{ scale: [1, 1.3, 1], opacity: [1, 0.5, 1] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    style={s.pulse}
+                />
+            )}
+            {statusConfig.label}
+        </div>
       </div>
-      <style>{`
-        @keyframes pulse {
-          0% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.2); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
-    </div>
+    </motion.div>
   )
 }

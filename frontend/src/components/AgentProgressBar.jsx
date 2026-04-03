@@ -63,24 +63,24 @@ const s = {
 }
 
 const PHASES = [
-  { id: 0, name: 'Planning', agents: ['orchestrator'] },
+  { id: 0, name: 'Plan', agents: ['orchestrator'] },
   { id: 1, name: 'Transport', agents: ['flight_agent', 'train_agent'] },
-  { id: 2, name: 'Booking', agents: ['hotel_agent', 'weather_agent', 'news_agent'] },
-  { id: 3, name: 'Activities', agents: ['restaurant_agent', 'itinerary_agent'] },
+  { id: 2, name: 'Basecamp', agents: ['hotel_agent', 'weather_agent', 'news_agent'] },
+  { id: 3, name: 'Activities', agents: ['restaurant_agent', 'site_seeing_agent'] },
+  { id: 4, name: 'Itinerary', agents: ['itinerary_agent'] },
 ]
 
 export default function AgentProgressBar({ agentStates, status }) {
   const [currentPhase, setCurrentPhase] = useState(0)
-  const [phaseProgress, setPhaseProgress] = useState([0, 0, 0, 0])
+  const [phaseProgress, setPhaseProgress] = useState([0, 0, 0, 0, 0])
 
   useEffect(() => {
     // Calculate current phase based on agent states
     const runningAgents = Object.entries(agentStates).filter(([_, state]) => state === 'running')
-    const doneAgents = Object.entries(agentStates).filter(([_, state]) => state === 'done')
-
+    
     // Determine which phase we're in
     let newPhase = 0
-    let newProgress = [0, 0, 0, 0]
+    let newProgress = [0, 0, 0, 0, 0]
 
     PHASES.forEach((phase, index) => {
       const phaseAgents = phase.agents

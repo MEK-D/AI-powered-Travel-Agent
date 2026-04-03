@@ -13,7 +13,8 @@ const AGENT_META = [
   { id: 'weather_agent',    name: 'Weather Agent',      icon: '🌦', sub: 'Live forecast',           phase: 2 },
   { id: 'news_agent',       name: 'News Agent',         icon: '📰', sub: 'Events & local tips',     phase: 2 },
   { id: 'restaurant_agent', name: 'Restaurant Agent',   icon: '🍽', sub: 'Dining finder',           phase: 3 },
-  { id: 'itinerary_agent',  name: 'Itinerary Agent',    icon: '🗺', sub: 'Day-by-day planner',      phase: 3 },
+  { id: 'site_seeing_agent', name: 'Sightseeing Agent',  icon: '🏛', sub: 'Local attractions',      phase: 3 },
+  { id: 'itinerary_agent',  name: 'Itinerary Agent',    icon: '🗺', sub: 'Day-by-day planner',      phase: 4 },
 ]
 
 export default function App() {
@@ -21,10 +22,11 @@ export default function App() {
   const [activeTab, setActiveTab]         = useState(1)
   const [selectedFlight, setSelectedFlight] = useState(null)
   const [selectedHotel, setSelectedHotel]   = useState(null)
+  const [currentTrip, setCurrentTrip]       = useState(null)
 
   const {
     threadId, status, error, hitl, logs, agentStates, scraped, timeline,
-    phase1Done, phase2Done, isDone, finalItinerary,
+    phase1Done, phase2Done, phase3Done, isDone, finalItinerary,
     startSession, approve, resume, reset, retry,
   } = useAgentStream({ onFlights: f => !selectedFlight && setSelectedFlight(f[0] || null),
                        onHotels:  h => !selectedHotel  && setSelectedHotel (h[0] || null) })
@@ -35,6 +37,7 @@ export default function App() {
     reset()
     setSelectedFlight(null)
     setSelectedHotel(null)
+    setCurrentTrip(tripDetails)
     setActiveTab(0)
     await startSession(promptVal, tripDetails)
   }, [startSession, reset])
@@ -42,11 +45,13 @@ export default function App() {
   const handleApprove = useCallback(async (phase) => {
     await approve(phase)
     if (phase === 0) {
-      setActiveTab(1) // Move to flights tab after orchestrator approval
+      setActiveTab(1) // Flights
     } else if (phase === 1) {
-      setActiveTab(2) // Move to hotels tab after phase 1 approval
+      setActiveTab(2) // Hotels
     } else if (phase === 2) {
-      setActiveTab(3) // Move to itinerary tab after phase 2 approval
+      setActiveTab(3) // Activities
+    } else if (phase === 3) {
+      setActiveTab(4) // Itinerary
     }
   }, [approve])
 
@@ -130,6 +135,7 @@ export default function App() {
           scraped={scraped}
           phase1Done={phase1Done}
           phase2Done={phase2Done}
+          phase3Done={phase3Done}
           isDone={isDone}
           finalItinerary={finalItinerary}
           onApprove={handleApprove}
@@ -143,6 +149,7 @@ export default function App() {
           status={status}
           agentStates={agentStates}
           timeline={timeline}
+          currentTrip={currentTrip}
         />
       </div>
     </div>

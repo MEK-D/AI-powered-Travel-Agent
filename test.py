@@ -140,12 +140,21 @@ def _phase2_sends(state):
 
 
 def _phase3_sends(state):
-    tasks   = state.get("agent_tasks", {})
-    trip    = state.get("trip_details", {})
-    scraped = state.get("scraped_data", {})
-    hf      = state.get("human_feedback", "")
-    base    = {"agent_tasks": tasks, "trip_details": trip, "scraped_data": scraped, "human_feedback": hf}
-    return [Send("restaurant_agent", base), Send("site_seeing_agent", base)]
+    required = state.get("required_agents", [])
+    tasks    = state.get("agent_tasks", {})
+    trip     = state.get("trip_details", {})
+    hf       = state.get("human_feedback", "")
+    
+    sends = []
+    # Always include site_seeing in phase 3 if using this flow, 
+    # but check restaurant_agent specifically
+    if "restaurant_agent" in required:
+        sends.append(Send("restaurant_agent", {"agent_tasks": tasks, "trip_details": trip, "scraped_data": state.get("scraped_data"), "human_feedback": hf}))
+    
+    # site_seeing is currently always included for experiences if we reached here
+    sends.append(Send("site_seeing_agent", {"agent_tasks": tasks, "trip_details": trip, "scraped_data": state.get("scraped_data"), "human_feedback": hf}))
+    
+    return sends if sends else "phase3_collector"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -478,7 +487,8 @@ def route_phase2_hitl(state):
     action = state.get("hitl_action", "approved")
     if action == "feedback":
         return "phase2_feedback"
-    return _phase3_sends(state)         # approved → fan-out phase 3
+    print("DEBUG: Phase 2 Approved. Proceeding to Phase 3 Fan-out.")
+    return _phase3_sends(state)
 
 
 def route_phase3_hitl(state):

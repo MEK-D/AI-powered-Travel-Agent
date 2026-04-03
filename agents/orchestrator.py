@@ -121,7 +121,7 @@ Rules:
     ])
 
     try:
-        # Pass the state variables directly into the prompt context
+        print(f"🧠 Sending request to Cohere: {state.get('user_request', 'No prompt')}...")
         plan: OrchestratorPlan = (prompt | structured).invoke({
             "user_request": state.get("user_request", ""),
             "trip_details": trip,
@@ -132,6 +132,7 @@ Rules:
             "number_of_travelers": trip.get("number_of_travelers", 1),
             "total_budget": trip.get("total_budget", 0)
         })
+        print(f"✅ Success: Plan structured. Agents to call: {plan.required_agents}")
     except Exception as e:
         print(f"❌ Orchestrator LLM error: {e}")
         # Fallback plan
