@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import PayloadVisualizer from './PayloadVisualizer'
+import { motion } from 'framer-motion'
 
 const s = {
   panel: {
@@ -111,10 +113,8 @@ export default function HitlPanel({ hitl, onSend, disabled }) {
   }, [hitl])
 
   const payloadPreview = useMemo(() => {
-    if (!hitl) return ''
-    const copy = { ...hitl }
-    delete copy.message
-    return JSON.stringify(copy, null, 2)
+    if (!hitl) return null
+    return hitl
   }, [hitl])
 
   const handleApprove = async () => {
@@ -142,9 +142,9 @@ export default function HitlPanel({ hitl, onSend, disabled }) {
       </div>
 
       <div style={s.meta}>
-        <div style={s.card}>
-          <div style={s.cardTitle}>Interrupt Payload</div>
-          <div style={s.json}>{payloadPreview || '{}'}</div>
+        <div style={{...s.card, width: '100%'}}>
+          <div style={s.cardTitle}>Phase Data Summary</div>
+          <PayloadVisualizer payload={payloadPreview} />
         </div>
       </div>
 

@@ -82,6 +82,11 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
             timeline = chunk.get("timeline", [])
             if timeline:
                 _push(q, "timeline_update", {"timeline": timeline})
+            
+            # Debug: what keys moved in this chunk?
+            k = list(chunk.keys())
+            if "status_log" in k or "scraped_data" in k:
+                print(f"DEBUG: Chunk yielding keys: {k}")
 
     except Exception as e:
         _push(q, "error", {"message": str(e)})
@@ -112,6 +117,7 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
         "last_approved_phase": vals.get("last_approved_phase", ""),
         "is_done":            is_done,
     })
+    print(f"DEBUG: Phase complete. Next nodes: {next_nodes}. Is done: {is_done}")
 
     q.put(None)   # sentinel → close stream
 

@@ -6,7 +6,7 @@ export const INDIAN_STATES_CITIES = {
   "Chandigarh": ["Chandigarh"],
   "Chhattisgarh": ["Raipur", "Bilaspur"],
   "Delhi": ["New Delhi"],
-  "Goa": ["Panaji", "Vasco da Gama", "Dabolim", "Margao"],
+  "Goa": ["Goa", "Panaji", "Vasco da Gama", "Dabolim", "Margao"],
   "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", "Jamnagar"],
   "Haryana": ["Gurgaon", "Faridabad", "Ambala"],
   "Himachal Pradesh": ["Shimla", "Kullu", "Dharamshala"],

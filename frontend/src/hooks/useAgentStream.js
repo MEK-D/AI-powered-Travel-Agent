@@ -8,6 +8,7 @@ const AGENT_KEYWORDS = {
   weather_agent:    ['Weather Agent'],
   news_agent:       ['News Agent'],
   restaurant_agent: ['Restaurant Agent'],
+  site_seeing_agent: ['Site Seeing Agent'],
   itinerary_agent:  ['Itinerary Agent'],
 }
 
@@ -29,6 +30,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   const [error, setError]               = useState(null)
   const [phase1Done, setPhase1Done]     = useState(false)
   const [phase2Done, setPhase2Done]     = useState(false)
+  const [phase3Done, setPhase3Done]     = useState(false)
   const [isDone,   setIsDone]           = useState(false)
   const [finalItinerary, setFinal]      = useState('')
   const [timeline, setTimeline]         = useState([])
@@ -72,7 +74,11 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
     es.addEventListener('connected',      () => addLog('🔗 Connected to agent stream'))
     es.addEventListener('agent_log',      e  => addLog(JSON.parse(e.data).message))
-    es.addEventListener('scraped_update', e  => mergeScraped(JSON.parse(e.data).scraped_data || {}))
+    es.addEventListener('scraped_update', e  => {
+        const data = JSON.parse(e.data);
+        console.log('📡 SSE: scraped_update', data);
+        mergeScraped(data.scraped_data || {});
+    })
     es.addEventListener('timeline_update', e => {
       const data = JSON.parse(e.data)
       if (data.timeline) setTimeline(data.timeline)
@@ -80,6 +86,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
     es.addEventListener('phase_complete', e => {
       const d = JSON.parse(e.data)
+      console.log('🏁 SSE: phase_complete', d);
       if (d.scraped_data)     mergeScraped(d.scraped_data)
       if (d.final_itinerary)  setFinal(d.final_itinerary)
       if (d.timeline)         setTimeline(d.timeline)
@@ -112,6 +119,11 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
         setPhase2Done(true)
         setStatus('paused')
         addLog('⏸️ Phase 2 complete — awaiting your input')
+        es.close()
+      } else if (nextNodes.includes('phase3_hitl')) {
+        setPhase3Done(true)
+        setStatus('paused')
+        addLog('⏸️ Phase 3 complete — awaiting your input')
         es.close()
       } else {
         setStatus('running')
@@ -214,8 +226,8 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     if (esRef.current) esRef.current.close()
     setThreadId(null); setStatus('idle'); setLogs([])
     setAgentStates({}); setScraped({}); setFinal(''); setHitl(null); setError(null)
-    setPhase1Done(false); setPhase2Done(false); setIsDone(false); setTimeline([])
+    setPhase1Done(false); setPhase2Done(false); setPhase3Done(false); setIsDone(false); setTimeline([])
   }, [])
 
-  return { threadId, status, error, hitl, logs, agentStates, scraped, timeline, phase1Done, phase2Done, isDone, finalItinerary, startSession, approve, resume, reset, retry }
+  return { threadId, status, error, hitl, logs, agentStates, scraped, timeline, phase1Done, phase2Done, phase3Done, isDone, finalItinerary, startSession, approve, resume, reset, retry }
 }
