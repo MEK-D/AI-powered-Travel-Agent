@@ -137,5 +137,12 @@ def hotel_agent(state: dict) -> dict:
             "details": "LLM eval unavailable"
         }]
 
+    selected_h = results[0] if results else None
     tl = [{"id": str(uuid.uuid4()), "from": "hotel_agent", "to": "phase2_collector", "message": f"Recommended hotel: {results[0]['name'] if results else 'N/A'}"}]
-    return {"scraped_data": {"hotels": results}, "status_log": logs, "timeline": tl}
+    return {
+        "scraped_data": {"hotels": results},
+        "all_hotels":     condensed,
+        "selected_hotel":  selected_h,
+        "status_log":      logs,
+        "timeline":        tl
+    }

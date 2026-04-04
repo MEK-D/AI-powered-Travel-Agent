@@ -21,7 +21,7 @@ function detectAgent(msg) {
 
 export function useAgentStream({ onFlights, onHotels } = {}) {
   const [threadId, setThreadId]         = useState(null)
-  const [status,   setStatus]           = useState('idle')   // idle | running | paused | done | error
+  const [status,   setStatus]           = useState('idle')   
   const [lastPrompt, setLastPrompt]     = useState('')
   const [logs,     setLogs]             = useState([])
   const [agentStates, setAgentStates]   = useState({})
@@ -36,11 +36,17 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   const [timeline, setTimeline]         = useState([])
   const [messages, setMessages]         = useState([])
   const [threadList, setThreadList]     = useState([])
+  const [tripDetails, setTripDetails]   = useState(null)
+  
+  const [allFlights, setAllFlights]     = useState([])
+  const [selectedF, setSelF]           = useState(null)
+  const [allHotels, setAllHotels]       = useState([])
+  const [selectedH, setSelH]           = useState(null)
+  
   const esRef = useRef(null)
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [...prev.slice(-80), msg])
-    // update agent state based on message content
     const agId = detectAgent(msg)
     if (agId) {
       setAgentStates(prev => {
@@ -62,7 +68,6 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       for (const [k, v] of Object.entries(incoming)) {
         if (Array.isArray(v)) {
           const existing = prev[k] || []
-          // Deduplicate by ID or Name if available, otherwise just append and filter
           const merged = [...existing, ...v]
           const seen = new Set()
           next[k] = merged.filter(item => {
@@ -91,14 +96,16 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     es.addEventListener('agent_log',      e  => addLog(JSON.parse(e.data).message))
     es.addEventListener('scraped_update', e  => {
         const data = JSON.parse(e.data);
-        console.log('📡 SSE: scraped_update', data);
-        mergeScraped(data.scraped_data || {});
+        if (data.scraped_data) mergeScraped(data.scraped_data);
+        if (data.all_flights)     setAllFlights(data.all_flights);
+        if (data.selected_flight) setSelF(data.selected_flight);
+        if (data.all_hotels)      setAllHotels(data.all_hotels);
+        if (data.selected_hotel)  setSelH(data.selected_hotel);
     })
     es.addEventListener('timeline_update', e => {
       const data = JSON.parse(e.data)
       if (data.timeline) setTimeline(data.timeline)
     })
-
     es.addEventListener('itinerary_update', e => {
       const data = JSON.parse(e.data);
       if (data.itinerary) setFinal(data.itinerary);
@@ -106,10 +113,14 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
     es.addEventListener('phase_complete', e => {
       const d = JSON.parse(e.data)
-      console.log('🏁 SSE: phase_complete', d);
       if (d.scraped_data)     mergeScraped(d.scraped_data)
+      if (d.all_flights)      setAllFlights(d.all_flights)
+      if (d.selected_flight)  setSelF(d.selected_flight)
+      if (d.all_hotels)       setAllHotels(d.all_hotels)
+      if (d.selected_hotel)   setSelH(d.selected_hotel)
       if (d.final_itinerary)  setFinal(d.final_itinerary)
       if (d.timeline)         setTimeline(d.timeline)
+      if (d.trip_details)     setTripDetails(d.trip_details)
 
       const interruptPayloads = d.interrupt_payloads || []
       if (interruptPayloads.length > 0) {
@@ -119,7 +130,6 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       }
 
       const nextNodes = d.next_nodes || []
-
       if (d.is_done || nextNodes.length === 0) {
         setIsDone(true)
         setStatus('done')
@@ -166,7 +176,6 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     es.onerror = () => {
       setError('SSE connection issue. Is the backend running?')
       setStatus('error')
-      addLog('⚠️ SSE connection issue...')
     }
   }, [addLog, mergeScraped])
 
@@ -187,30 +196,22 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
         body: JSON.stringify({ 
           prompt: actualPrompt,
           trip_details: tripDetails,
-          thread_id: threadId // Pass if we want to resume or reuse a Specific ID
+          thread_id: threadId 
         }),
       })
-      if (!res.ok) {
-        const t = await res.text()
-        throw new Error(t || `HTTP ${res.status}`)
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setThreadId(data.thread_id)
-      addLog(`📡 Thread: ${data.thread_id.substring(0, 8)}...`)
-      setMessages(prev => [...prev, {role: 'user', content: actualPrompt}])
       openStream(data.thread_id)
-      fetchThreads() // Refresh list
     } catch (e) {
       setError(String(e?.message || e))
       setStatus('error')
-      addLog('❌ Failed to start session')
     }
-  }, [addLog, openStream])
+  }, [addLog, openStream, lastPrompt, threadId])
 
   const resume = useCallback(async (decision) => {
     if (!threadId) return
     setStatus('running')
-    setError(null)
     setHitl(null)
     addLog(`🟣 Sending input: ${String(decision).slice(0, 80)}`)
     try {
@@ -219,43 +220,23 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision }),
       })
-      if (!res.ok) {
-        const t = await res.text()
-        throw new Error(t || `HTTP ${res.status}`)
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       openStream(threadId)
     } catch (e) {
       setError(String(e?.message || e))
       setStatus('error')
-      addLog('❌ Failed to resume graph')
     }
   }, [threadId, addLog, openStream])
   
   const retry = useCallback(async () => {
     if (!error) return
-    if (!threadId) {
-      // Re-start if it failed during start
-      addLog('🔄 Retrying start...')
-      startSession() // This might need the last prompt, let's store it
-    } else {
-      addLog('🔄 Retrying resume...')
-      // We don't have the last decision, but usually it's during a resume
-      openStream(threadId)
-    }
-  }, [error, threadId, addLog, startSession, openStream])
+    if (!threadId) startSession()
+    else openStream(threadId)
+  }, [error, threadId, startSession, openStream])
 
-
-  // Backward compatibility: approve maps to resume('yes')
   const approve = useCallback(async (_phase) => {
     await resume('yes')
   }, [resume])
-
-  const reset = useCallback(() => {
-    if (esRef.current) esRef.current.close()
-    setThreadId(null); setStatus('idle'); setLogs([])
-    setAgentStates({}); setScraped({}); setFinal(''); setHitl(null); setError(null)
-    setPhase1Done(false); setPhase2Done(false); setPhase3Done(false); setIsDone(false); setTimeline([]); setMessages([])
-  }, [])
 
   const fetchThreads = useCallback(async () => {
     try {
@@ -263,8 +244,16 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       const data = await res.json()
       if (data.threads) setThreadList(data.threads)
     } catch (e) {
-      console.error("Failed to fetch threads", e)
+      console.error(e)
     }
+  }, [])
+
+  const reset = useCallback(() => {
+    if (esRef.current) esRef.current.close()
+    setThreadId(null); setStatus('idle'); setLogs([])
+    setAgentStates({}); setScraped({}); setFinal(''); setHitl(null); setError(null)
+    setPhase1Done(false); setPhase2Done(false); setPhase3Done(false); setIsDone(false); setTimeline([]); setMessages([])
+    setAllFlights([]); setSelF(null); setAllHotels([]); setSelH(null); setTripDetails(null)
   }, [])
 
   const loadThread = useCallback(async (tid) => {
@@ -274,13 +263,19 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     addLog(`📂 Loading thread ${tid.substring(0,8)}...`)
     try {
       const res = await fetch(`/api/threads/${tid}`)
+      if (res.status === 404) {
+        localStorage.removeItem('travel_agent_thread_id')
+        throw new Error('This plan has expired or no longer exists on the server.')
+      }
       const data = await res.json()
-      if (data.error) throw new Error(data.error)
-
-      // Restore state
       const s = data.state || {}
       setMessages(data.messages || [])
       setScraped(s.scraped_data || {})
+      setAllFlights(s.all_flights || [])
+      setSelF(s.selected_flight || null)
+      setAllHotels(s.all_hotels || [])
+      setSelH(s.selected_hotel || null)
+      setTripDetails(s.trip_details || null)
       setFinal(s.final_itinerary || '')
       setTimeline(s.timeline || [])
       setLastPrompt(s.user_request || '')
@@ -288,18 +283,12 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       if (data.interrupt_payloads?.length > 0) {
         setHitl(data.interrupt_payloads[data.interrupt_payloads.length - 1])
         setStatus('paused')
-        addLog('⏸️ Thread restored — awaiting your input')
       } else if (s.final_itinerary) {
         setStatus('done')
         setIsDone(true)
       } else {
         setStatus('idle')
       }
-      
-      // Infer agent states from status_log or timeline if needed
-      // For now just clear them
-      setAgentStates({})
-
     } catch (e) {
       setError(String(e))
       setStatus('error')
@@ -308,6 +297,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
   return { 
     threadId, status, error, hitl, logs, agentStates, scraped, timeline, 
+    allFlights, selectedF, allHotels, selectedH, tripDetails,
     phase1Done, phase2Done, phase3Done, isDone, finalItinerary, messages, threadList,
     startSession, approve, resume, reset, retry, fetchThreads, loadThread 
   }

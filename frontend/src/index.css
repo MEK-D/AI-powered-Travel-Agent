@@ -8,6 +8,7 @@
   --card:     #111827;
   --border:   rgba(255,255,255,0.07);
   --accent:   #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.5);
   --accent2:  #8b5cf6;
   --gold:     #f59e0b;
   --teal:     #06b6d4;
@@ -15,16 +16,105 @@
   --red:      #ef4444;
   --text:     #e2e8f0;
   --muted:    #64748b;
+  --glass:    rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
 }
 
 body {
   background: var(--bg);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
   color: var(--text);
   font-family: 'Inter', sans-serif;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+.glass-panel {
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  flex: 1;
+  gap: 20px;
+  padding: 20px;
+  overflow: hidden;
+  height: 0; /* Ensures children define the scroll area within the remaining flex space */
+}
+
+@media (max-width: 1200px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr 340px;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-layout {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    height: auto;
+  }
+}
+
+.planning-workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  height: 100%;
+}
+
+.agents-telemetry {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto; /* Allow sidebar to scroll if too many logs/agents */
+  gap: 20px;
+  height: 100%;
+}
+
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 12px;
+  min-height: 0;
+}
+
+.hitl-footer {
+  margin-top: 20px;
+  flex-shrink: 0;
+}
+
+.selected-card {
+  border: 2px solid var(--accent) !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+}
+
+.status-glow {
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}

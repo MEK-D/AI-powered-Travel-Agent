@@ -138,6 +138,13 @@ def flight_agent(state: dict) -> dict:
                     "arrival": condensed[0]["arrival_time"], "cost": condensed[0]["price_usd"],
                     "timing_notes": "Direct pick", "details": "LLM eval unavailable"}]
 
+    selected_f = results[0] if results else None
     tl = [{"id": str(uuid.uuid4()), "from": "flight_agent", "to": "phase1_collector", "message": f"Found {len(results or condensed[:2])} flights."}]
-    return {"scraped_data": {"flights": results or condensed[:2]}, "status_log": logs, "timeline": tl}
+    return {
+        "scraped_data": {"flights": results or condensed[:2]},
+        "all_flights":  condensed,
+        "selected_flight": selected_f,
+        "status_log":   logs,
+        "timeline":     tl
+    }
 

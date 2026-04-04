@@ -77,8 +77,14 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
             for log in logs[-1:]:
                 _push(q, "agent_log", {"message": log})
             scraped = chunk.get("scraped_data", {})
-            if scraped:
-                _push(q, "scraped_update", {"scraped_data": scraped})
+            if scraped or any(k in chunk for k in ["all_flights", "selected_flight", "all_hotels", "selected_hotel"]):
+                _push(q, "scraped_update", {
+                    "scraped_data": scraped,
+                    "all_flights": chunk.get("all_flights"),
+                    "selected_flight": chunk.get("selected_flight"),
+                    "all_hotels": chunk.get("all_hotels"),
+                    "selected_hotel": chunk.get("selected_hotel"),
+                })
             timeline = chunk.get("timeline", [])
             if timeline:
                 _push(q, "timeline_update", {"timeline": timeline})
@@ -87,11 +93,6 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
             if itinerary:
                 _push(q, "itinerary_update", {"itinerary": itinerary})
             
-            # Debug: what keys moved in this chunk?
-            k = list(chunk.keys())
-            if "status_log" in k or "scraped_data" in k:
-                print(f"DEBUG: Chunk yielding keys: {k}")
-
     except Exception as e:
         _push(q, "error", {"message": str(e)})
         import traceback; traceback.print_exc()
@@ -113,6 +114,10 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
         "next_nodes":         next_nodes,
         "interrupt_payloads": interrupt_payloads,
         "scraped_data":       vals.get("scraped_data", {}),
+        "all_flights":        vals.get("all_flights"),
+        "selected_flight":    vals.get("selected_flight"),
+        "all_hotels":         vals.get("all_hotels"),
+        "selected_hotel":     vals.get("selected_hotel"),
         "trip_details":       vals.get("trip_details", {}),
         "final_itinerary":    vals.get("final_itinerary", ""),
         "status_log":         vals.get("status_log", []),
