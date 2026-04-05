@@ -22,6 +22,32 @@ except ImportError:
         print("PostgreSQL checkpointer not found, using memory checkpointer")
 
 from langgraph.types import Command
+from langchain_core.callbacks import BaseCallbackHandler
+
+# ──────────────────────────────────────────────────────────────────
+# Structured Agent Status Logic
+# ──────────────────────────────────────────────────────────────────
+AGENT_LIST = [
+    "orchestrator", "flight_agent", "train_agent", 
+    "hotel_agent", "weather_agent", "news_agent", 
+    "restaurant_agent", "site_seeing_agent", "itinerary_agent"
+]
+
+class AgentStatusCallback(BaseCallbackHandler):
+    """Callback to push agent start/end status events to SSE."""
+    def __init__(self, q: queue.Queue):
+        self.q = q
+    
+    def on_chain_start(self, serialized, inputs, **kwargs):
+        # LangGraph nodes are run as chains/runnables with the node name
+        name = kwargs.get("name") or (serialized.get("name") if serialized else None)
+        if name in AGENT_LIST:
+            _push(self.q, "agent_status", {"agent": name, "status": "running"})
+            
+    def on_chain_end(self, outputs, **kwargs):
+        name = kwargs.get("name")
+        if name in AGENT_LIST:
+            _push(self.q, "agent_status", {"agent": name, "status": "done"})
 
 flask_app = Flask(__name__, static_folder="static")
 
@@ -70,7 +96,10 @@ def _push(q: queue.Queue, event: str, data: dict):
 # ──────────────────────────────────────────────────────────────────
 def _run_graph(thread_id: str, input_val, q: queue.Queue):
     """Stream graph until the next interrupt() or END, pushing SSE events."""
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "callbacks": [AgentStatusCallback(q)]
+    }
     try:
         for chunk in graph_app.stream(input_val, config=config, stream_mode="values"):
             logs = chunk.get("status_log", [])

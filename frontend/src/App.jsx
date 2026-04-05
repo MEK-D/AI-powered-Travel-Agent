@@ -174,6 +174,7 @@ export default function App() {
           agentStates={agentStates}
           timeline={timeline}
           currentTrip={currentTrip}
+          logs={logs}
         />
       </div>
     </div>
