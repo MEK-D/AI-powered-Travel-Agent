@@ -119,10 +119,7 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* Progress */}
-      <div style={s.progressPanel}>
-        <AgentProgressBar agentStates={agentStates} status={status} />
-      </div>
+      {/* Progress section removed as per user request */}
 
       {/* Agents System */}
       <div style={s.agentsPanel} className="custom-scrollbar">
@@ -156,11 +153,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Log - Telemetry */}
-      <div style={s.logPanel}>
-        <div style={s.panelLabel}>System Telemetry</div>
-        <AnimatedLog logs={logs} />
-      </div>
+      {/* System Telemetry moved to the main panel as requested */}
     </aside>
   )
 }

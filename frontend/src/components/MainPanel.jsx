@@ -5,7 +5,7 @@ import HotelPanel from './HotelPanel'
 import ItineraryPanel from './ItineraryPanel'
 import ChatPanel from './ChatPanel'
 import HitlPanel from './HitlPanel'
-import ExecutionFlow from './ExecutionFlow'
+import AnimatedLog from './AnimatedLog'
 import TripForm from './TripForm'
 import ActivitiesPanel from './ActivitiesPanel'
 
@@ -85,12 +85,17 @@ export default function MainPanel({
   agentStates,
   timeline,
   currentTrip,
+  logs,
 }) {
   if (status === 'idle') {
     return (
       <main style={s.mainPanel}>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 20px', display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 20px' }}>
           <TripForm onStart={onStartSession} />
+          <div style={{ marginTop: 40, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
+             <div style={{ fontSize: '.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 14 }}>System Telemetry</div>
+             <AnimatedLog logs={logs} height={200} />
+          </div>
         </div>
       </main>
     )
@@ -114,8 +119,9 @@ export default function MainPanel({
         <div style={s.content}>
           <div style={s.panelContainer}>
             <HitlPanel hitl={hitl} onSend={onHitlSend} disabled={false} />
-            <div style={{ marginTop: 24 }}>
-               <ExecutionFlow timeline={timeline} />
+            <div style={{ marginTop: 24, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
+               <div style={{ fontSize: '.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 14 }}>System Telemetry</div>
+               <AnimatedLog logs={logs} height={300} />
             </div>
           </div>
         </div>
@@ -202,11 +208,10 @@ export default function MainPanel({
       <div style={s.content}>
         <div style={s.panelContainer}>
           {renderPanel()}
-          {timeline.length > 0 && (
-            <div style={{ marginTop: 24 }}>
-               <ExecutionFlow timeline={timeline} />
-            </div>
-          )}
+          <div style={{ marginTop: 32, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
+             <div style={{ fontSize: '.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 14 }}>System Telemetry</div>
+             <AnimatedLog logs={logs} height={350} />
+          </div>
         </div>
       </div>
     </main>

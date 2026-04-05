@@ -40,20 +40,6 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [...prev.slice(-80), msg])
-    // update agent state based on message content
-    const agId = detectAgent(msg)
-    if (agId) {
-      setAgentStates(prev => {
-        if (prev[agId] !== 'done') return { ...prev, [agId]: 'running' }
-        return prev
-      })
-    }
-    if (msg.startsWith('✅') && agId) {
-      setAgentStates(prev => ({ ...prev, [agId]: 'done' }))
-    }
-    if (msg.includes('❌') && agId) {
-      setAgentStates(prev => ({ ...prev, [agId]: 'error' }))
-    }
   }, [])
 
   const mergeScraped = useCallback((incoming) => {
@@ -157,6 +143,34 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       } else {
         setStatus('running')
       }
+    })
+
+    es.addEventListener('agent_status', e => {
+      const data = JSON.parse(e.data)
+      const { agent, status } = data
+      
+      const AGENT_PHASES = {
+        orchestrator: 0,
+        flight_agent: 1, train_agent: 1,
+        hotel_agent: 2, weather_agent: 2, news_agent: 2,
+        restaurant_agent: 3, site_seeing_agent: 3,
+        itinerary_agent: 4
+      }
+
+      setAgentStates(prev => {
+        const next = { ...prev, [agent]: status }
+        
+        // If an agent starts running, mark all agents from PREVIOUS phases as done
+        if (status === 'running') {
+          const currentPhase = AGENT_PHASES[agent]
+          Object.entries(AGENT_PHASES).forEach(([id, phase]) => {
+            if (phase < currentPhase) {
+              next[id] = 'done'
+            }
+          })
+        }
+        return next
+      })
     })
 
     es.addEventListener('stream_end', () => { es.close(); addLog('📡 Stream closed') })

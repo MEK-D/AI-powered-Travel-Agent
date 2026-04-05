@@ -22,7 +22,12 @@ const s = {
   },
 }
 
-export default function AnimatedLog({ logs }) {
+export default function AnimatedLog({ logs, height }) {
+  const containerStyle = {
+    ...s.logContainer,
+    height: height || 'auto',
+    maxHeight: height || 'none'
+  }
   const [displayedLogs, setDisplayedLogs] = useState([])
   const [isTyping, setIsTyping] = useState(false)
   const logRef = useRef(null)
@@ -58,7 +63,7 @@ export default function AnimatedLog({ logs }) {
   }, [displayedLogs])
 
   return (
-    <div style={s.logContainer} ref={logRef}>
+    <div style={containerStyle} ref={logRef}>
       {displayedLogs.length === 0 ? (
         <div style={{ color: '#334155', fontSize: '.75rem' }}>Waiting for session…</div>
       ) : (
