@@ -150,6 +150,10 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
         setStatus('paused')
         addLog('⏸️ Phase 3 complete — awaiting your input')
         es.close()
+      } else if (nextNodes.includes('itinerary_hitl')) {
+        setStatus('paused')
+        addLog('🗺️ Final Itinerary ready — review it in the Dossier tab')
+        es.close()
       } else {
         setStatus('running')
       }

@@ -131,6 +131,7 @@ export default function MainPanel({
             onApprove={onApprove}
             status={status}
             agentStates={agentStates}
+            finalItinerary={finalItinerary}
           />
         )
       case 1:

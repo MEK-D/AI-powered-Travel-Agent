@@ -55,8 +55,9 @@ const s = {
   },
 }
 
-export default function OrchestratorPanel({ onApprove, status, agentStates }) {
-  const isDisabled = status === 'running'
+export default function OrchestratorPanel({ onApprove, status, agentStates, finalItinerary }) {
+  const isDone = status === 'done'
+  const isFinalReview = !!finalItinerary
 
   // Mock orchestrator plan data - in real app this would come from the backend
   const mockPlan = {
@@ -94,6 +95,40 @@ Required Agents:
     )
   }
 
+  if (isFinalReview) {
+    return (
+      <div style={s.panel}>
+        <h2 style={s.title}>🧠 Orchestration complete</h2>
+        
+        <div style={{...s.instructionBox, background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)'}}>
+          <div style={{...s.instructionTitle, color: '#10b981'}}>🗺️ Itinerary Generated</div>
+          <div style={s.instructionText}>
+            The orchestrator and agents have finished your travel plan. You can see the full details in the Dossier tab.
+          </div>
+        </div>
+
+        <div style={s.planCard}>
+          <div style={s.planTitle}>📋 Execution complete</div>
+          <div style={{...s.planContent, maxHeight: 200, overflowY: 'auto'}}>{finalItinerary}</div>
+        </div>
+
+        {!isDone && (
+          <button
+            style={s.approveButton(false)}
+            onClick={() => onApprove(4)}
+          >
+            ✅ Final Approval & Finish
+          </button>
+        )}
+        {isDone && (
+          <div style={{ textAlign: 'center', padding: 20, color: '#10b981', fontWeight: 700 }}>
+            🎉 This trip is fully planned and approved!
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={s.panel}>
       <h2 style={s.title}>🧠 Orchestrator Plan</h2>
@@ -116,11 +151,11 @@ Required Agents:
       </div>
 
       <button
-        style={s.approveButton(isDisabled)}
+        style={s.approveButton(status === 'running')}
         onClick={() => onApprove(0)}
-        disabled={isDisabled}
+        disabled={status === 'running'}
       >
-        {isDisabled ? 'Processing...' : '✅ Approve Plan & Start Agents'}
+        {status === 'running' ? 'Processing...' : '✅ Approve Plan & Start Agents'}
       </button>
     </div>
   )
