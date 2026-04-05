@@ -58,6 +58,9 @@ class ItineraryTask(BaseModel):
     pace: Optional[str] = Field(default="moderate")
     activity_vibes: List[str] = Field(default_factory=lambda: ["tourist highlights"])
 
+class site_seeing_task(BaseModel):
+    destination: str = Field(description="City they are traveling to.")
+
 class RoadTask(BaseModel):
     needs_rental: bool = False
     route_preference: Optional[str] = Field(default="fastest")
@@ -73,6 +76,7 @@ class OrchestratorPlan(BaseModel):
     weather_task: Optional[WeatherTask] = None
     news_task: Optional[NewsTask] = None
     itinerary_task: Optional[ItineraryTask] = None
+    site_seeing_task: Optional[site_seeing_task] = None
     
     
 
@@ -108,10 +112,19 @@ The user has already provided the following trip details:
 - Budget: ${{total_budget}}
 
 Your job is to decide which agents to activate based on their prompt:
-[flight_agent, train_agent, road_agent, hotel_agent, restaurant_agent, weather_agent, news_agent, itinerary_agent]
+[flight_agent, train_agent, road_agent, hotel_agent, restaurant_agent, weather_agent, news_agent, itinerary_agent, site_seeing_agent]
+site_seeing_agent: Recommends tourist attractions, landmarks, and activities at the destination.
+itinerary_agent: Creates a day-by-day itinerary based on the trip details and other agent outputs.
+weather_agent: Provides weather forecasts for the destination during the travel dates.
+news_agent: Provides relevant news about the destination during the travel dates.
+hotel_agent: Finds hotels that match the user's preferences and budget.
+restaurant_agent: Recommends restaurants at the destination based on cuisine and price preferences.
+flight_agent: Finds flight options based on the trip details and user preferences.
+train_agent: Finds train options based on the trip details and user preferences.
+road_agent: Provides road trip options and car rental information based on the trip details and user preferences
 
 Rules:
-- Always include: itinerary_agent, weather_agent, news_agent, site_seeing_agent
+- Always include: itinerary_agent, weather_agent, news_agent, site_seeing_agent but if user explicitly says they dont want one of these, then you can exclude it.
 -Try to include one of travel agent (flight_agent, train_agent, road_agent), exclude only when user says explicitly that he dont want any travel agent from you.
 -Try to include restaurant_agent if not excluded explicitly by user
 -Try to include hotel_agent if not excluded explicitly by user
@@ -136,17 +149,14 @@ Rules:
         print(f"❌ Orchestrator LLM error: {e}")
         # Fallback plan
         return {
-            "required_agents":  ["flight_agent", "hotel_agent", "weather_agent", "news_agent", "restaurant_agent", "itinerary_agent"],
-            "agent_tasks":      {"flight_agent": {}, "hotel_agent": {}, "weather_agent": {}, "news_agent": {}, "restaurant_agent": {}, "itinerary_agent": {}},
+            "required_agents":  ["flight_agent", "hotel_agent", "weather_agent", "news_agent", "restaurant_agent", "itinerary_agent", "site_seeing_agent"],
+            "agent_tasks":      {"flight_agent": {}, "hotel_agent": {}, "weather_agent": {}, "news_agent": {}, "restaurant_agent": {}, "itinerary_agent": {}, "site_seeing_agent": {}},
             "phase1_approved":  False,
             "phase2_approved":  False,
             "status_log":       [msg, f"❌ Fallback activated due to error: {e}"],
         }
 
     required = list(plan.required_agents)
-    for must in ["itinerary_agent", "hotel_agent", "weather_agent", "news_agent"]:
-        if must not in required:
-            required.append(must)
 
     print(f"🔀 Activated agents: {required}")
 
@@ -158,6 +168,7 @@ Rules:
         "restaurant_agent": plan.restaurant_task,
         "weather_agent":    plan.weather_task,
         "news_agent":       plan.news_task,
+        "site_seeing_agent": plan.site_seeing_task,
         "itinerary_agent":  plan.itinerary_task,
     }
     
