@@ -13,6 +13,7 @@ from datetime import datetime
 import langchain
 
 from state import TripState
+from telemetry import TelemetryManager, TelemetryCallbackHandler
 
 class TripDetails(BaseModel):
     origin: str = Field(description="City they are leaving from.")
@@ -50,20 +51,25 @@ class RestaurantTask(BaseModel):
 
 class WeatherTask(BaseModel):
     preferred_units: str = Field(default="celsius")
+    task : str = Field(default="To find weather forecast for the destination during the travel dates.")
 
 class NewsTask(BaseModel):
     interests: List[str] = Field(default_factory=lambda: ["events"])
+    task : str = Field(default="To find relevant news about the destination during the travel dates.")
 
 class ItineraryTask(BaseModel):
     pace: Optional[str] = Field(default="moderate")
     activity_vibes: List[str] = Field(default_factory=lambda: ["tourist highlights"])
+    task : str = Field(default="To create a day-by-day itinerary based on the trip details and other agent outputs.")
 
 class site_seeing_task(BaseModel):
     destination: str = Field(description="City they are traveling to.")
+    task : str = Field(default="To recommend tourist attractions, landmarks, and activities at the destination.")
 
 class RoadTask(BaseModel):
     needs_rental: bool = False
     route_preference: Optional[str] = Field(default="fastest")
+    task : str =  Field(default="To provide road trip options and car rental information based on the trip details and user preferences.")
 
 class OrchestratorPlan(BaseModel):
     trip_details: TripDetails
@@ -82,11 +88,11 @@ class OrchestratorPlan(BaseModel):
 
 
 def orchestrator_node(state: TripState) -> dict:
-    msg = "🧠 Orchestrator: Parsing request & building execution plan..."
-    print(msg)
+    tm = TelemetryManager("orchestrator")
+    tm.info("🧠 Orchestrator: Parsing request & building execution plan...")
 
     llm = ChatCohere(model="command-r-08-2024", temperature=0, max_retries=1)
-    structured = llm.with_structured_output(OrchestratorPlan)
+    callback = TelemetryCallbackHandler(tm)
     today = datetime.now().strftime("%Y-%m-%d")
 
     # ── Incorporate any user feedback from a previous HITL interrupt ──────────
@@ -133,8 +139,8 @@ Rules:
     ])
 
     try:
-        print(f"🧠 Sending request to Cohere: {state.get('user_request', 'No prompt')}...")
-        plan: OrchestratorPlan = (prompt | structured).invoke({
+        tm.info(f"🧠 Sending request to Cohere: {state.get('user_request', 'No prompt')}...")
+        plan: OrchestratorPlan = (prompt | llm.with_structured_output(OrchestratorPlan)).invoke({
             "user_request": state.get("user_request", ""),
             "trip_details": trip,
             "origin": trip.get("origin", "Unknown"),
@@ -143,22 +149,24 @@ Rules:
             "end_date": trip.get("end_date", "Unknown"),
             "number_of_travelers": trip.get("number_of_travelers", 1),
             "total_budget": trip.get("total_budget", 0)
-        })
-        print(f"✅ Success: Plan structured. Agents to call: {plan.required_agents}")
+        }, config={"callbacks": [callback]})
+        tm.info(f"✅ Success: Plan structured. Activating {len(plan.required_agents)} specialized agents.", 
+                agents=plan.required_agents, trip_details=plan.trip_details.dict())
     except Exception as e:
-        print(f"❌ Orchestrator LLM error: {e}")
+        tm.error(f"❌ Orchestrator LLM error: {e}")
         # Fallback plan
         return {
             "required_agents":  ["flight_agent", "hotel_agent", "weather_agent", "news_agent", "restaurant_agent", "itinerary_agent", "site_seeing_agent"],
             "agent_tasks":      {"flight_agent": {}, "hotel_agent": {}, "weather_agent": {}, "news_agent": {}, "restaurant_agent": {}, "itinerary_agent": {}, "site_seeing_agent": {}},
             "phase1_approved":  False,
             "phase2_approved":  False,
-            "status_log":       [msg, f"❌ Fallback activated due to error: {e}"],
+            "status_log":       [e.message for e in tm.entries],
+            "telemetry":        tm.get_entries(),
         }
 
     required = list(plan.required_agents)
-
-    print(f"🔀 Activated agents: {required}")
+    tm.info(f"🔀 Coordination: Dispatching tasks to {', '.join(required)}.", 
+            dispatch_list=required)
 
     task_map = {
         "flight_agent":     plan.flight_task,
@@ -183,7 +191,8 @@ Rules:
         "required_agents": required,
         "agent_tasks":     agent_tasks,
         "hitl_action":     "approved",   # reset gate flag for this run
-        "status_log":      [msg, f"✅ Plan built. Agents: {required}"],
+        "status_log":      [e.message for e in tm.entries],
+        "telemetry":       tm.get_entries(),
         "timeline":        tl,
     }
 

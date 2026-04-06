@@ -65,7 +65,7 @@ export default function AnimatedLog({ logs, height }) {
   return (
     <div style={containerStyle} ref={logRef}>
       {displayedLogs.length === 0 ? (
-        <div style={{ color: '#334155', fontSize: '.75rem' }}>Waiting for session…</div>
+        <div style={{ color: '#111111', fontSize: '.75rem' }}>Waiting for session…</div>
       ) : (
         displayedLogs.map((log, i) => (
           <div key={i} style={s.logLine(i === displayedLogs.length - 1, isTyping && i === displayedLogs.length - 1)}>

@@ -6,14 +6,14 @@ const s = {
     border: '1px solid rgba(255,255,255,0.05)', padding: 24,
   },
   title: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '1.3rem', fontWeight: 800,
+    fontFamily: "'Playfair Display', sans-serif", fontSize: '1.3rem', fontWeight: 800,
     color: '#e2e8f0', marginBottom: 20,
   },
   section: {
     marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: '1rem', fontWeight: 700, color: '#6366f1',
+    fontSize: '1rem', fontWeight: 700, color: '#556B2F',
     textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 16,
     display: 'flex', alignItems: 'center', gap: 8,
   },
@@ -30,7 +30,7 @@ const s = {
     marginBottom: 4,
   },
   cardName: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '1.1rem', fontWeight: 700,
+    fontFamily: "'Playfair Display', sans-serif", fontSize: '1.1rem', fontWeight: 700,
     color: '#e2e8f0',
   },
   cardMeta: {
@@ -40,7 +40,7 @@ const s = {
     display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4,
   },
   tag: {
-    background: 'rgba(99,102,241,0.1)', color: '#818cf8',
+    background: 'rgba(85,107,47,0.1)', color: '#6B8E23',
     padding: '4px 8px', borderRadius: 6, fontSize: '.72rem', fontWeight: 600,
   },
   rating: {
@@ -49,11 +49,11 @@ const s = {
   },
   approveButton: (disabled) => ({
     width: '100%', padding: '16px', border: 'none', borderRadius: 12,
-    background: disabled ? 'rgba(99,102,241,0.2)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff', fontFamily: "'Outfit', sans-serif", fontSize: '1rem', fontWeight: 700,
+    background: disabled ? 'rgba(85,107,47,0.2)' : 'linear-gradient(135deg, #556B2F, #3e4f20)',
+    color: '#fff', fontFamily: "'Playfair Display', sans-serif", fontSize: '1rem', fontWeight: 700,
     cursor: disabled ? 'not-allowed' : 'pointer',
     transition: 'all .3s', opacity: disabled ? 0.5 : 1,
-    boxShadow: disabled ? 'none' : '0 4px 20px rgba(99,102,241,0.3)',
+    boxShadow: disabled ? 'none' : '0 4px 20px rgba(85,107,47,0.3)',
   }),
   loading: {
     textAlign: 'center', padding: 40, color: '#64748b',
@@ -88,17 +88,17 @@ export default function ActivitiesPanel({ scraped, phase3Done, onApprove, status
 
   return (
     <div style={s.panel}>
-      <h2 style={s.title}>🍽️🏛️ Activities & Dining</h2>
+      <h2 style={s.title}>🍷🏺 Activities & Dining</h2>
 
       {isRunning ? (
         <div style={s.loading}>
-            <div style={{ fontSize: '2rem', marginBottom: 16 }}>🍽️</div>
+            <div style={{ fontSize: '2rem', marginBottom: 16 }}>🍷</div>
             <div>Scanned potential activities...</div>
         </div>
       ) : (
         <>
           <div style={s.section}>
-            <div style={s.sectionTitle}>🍽️ Restaurants</div>
+            <div style={s.sectionTitle}>🍷 Restaurants</div>
             <div style={s.grid}>
               {restaurants.map((r, i) => (
                 <div key={i} style={s.card}>
@@ -122,7 +122,7 @@ export default function ActivitiesPanel({ scraped, phase3Done, onApprove, status
           </div>
 
           <div style={s.section}>
-            <div style={s.sectionTitle}>🏛️ Sightseeing</div>
+            <div style={s.sectionTitle}>🏺 Sightseeing</div>
             <div style={s.grid}>
               {sites.map((site, i) => (
                 <div key={i} style={s.card}>

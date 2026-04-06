@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import json, os, requests, uuid
 from datetime import datetime
 import langchain
+from telemetry import TelemetryManager, TelemetryCallbackHandler
 
 class SelectedHotel(BaseModel):
     hotel_name: str
@@ -27,8 +28,8 @@ class HotelSelection(BaseModel):
     best_hotels: List[SelectedHotel]
 
 def hotel_agent(state: dict) -> dict:
-    logs = ["🏨 Hotel Agent: Starting SerpApi Google Hotels search..."]
-    print(logs[0])
+    tm = TelemetryManager("hotel_agent")
+    tm.info("🏨 Hotel Agent: Starting SerpApi Google Hotels search...")
 
     trip        = state.get("trip_details", {})
     task        = state.get("agent_tasks", {}).get("hotel_agent", {})
@@ -58,12 +59,15 @@ def hotel_agent(state: dict) -> dict:
             "hl":             "en",
             "api_key":        serpapi_key,
         }
+        tm.info(f"🏨 Hotel Search: Looking for properties in {dest_city} ({check_in} to {check_out}) for {travelers} travelers.")
         resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
         resp.raise_for_status()
         raw_hotels = resp.json().get("properties", [])
+        tm.info(f"📡 SerpApi Data Received: Found {len(raw_hotels)} properties in the {dest_city} area.", 
+                raw_count=len(raw_hotels), city=dest_city)
     except Exception as e:
-        logs.append(f"❌ Hotel API error: {e}")
-        return {"scraped_data": {"hotels": [{"error": str(e)}]}, "status_log": logs}
+        tm.error(f"❌ Hotel API error: {e}")
+        return {"scraped_data": {"hotels": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # Step 1: Extract data from raw JSON including GPS and Nearby Places
     condensed = []
@@ -92,21 +96,24 @@ def hotel_agent(state: dict) -> dict:
             continue
 
     if not condensed:
-        return {"scraped_data": {"hotels": [{"error": "No hotels found."}]}, "status_log": logs}
+        tm.warning(f"⚠️ No hotel options extracted from {len(raw_hotels)} raw results. (Price per night missing or invalid)")
+        return {"scraped_data": {"hotels": [{"error": "No hotels found."}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
-    logs.append(f"🧠 Hotel Agent: LLM evaluating {len(condensed)} hotels for '{vibe}' vibe...")
+    tm.info(f"🧠 Analysis: Extracted {len(condensed)} valid hotel options for closer evaluation.", 
+            condensed_count=len(condensed), vibe=vibe)
 
     try:
         llm      = ChatCohere(model="command-r-08-2024", temperature=0)
         eval_llm = llm.with_structured_output(HotelSelection)
         eval_p   = ChatPromptTemplate.from_messages([
-            ("system", f"Pick best 1 hotels. You MUST preserve the exact 'gps_coordinates' and 'nearby_places' provided in the source data.{feedback_clause}"),
-            ("human",  "Hotels Data:\n{hotels}\n\nVibe: {vibe}")
+            ("system", f"Pick best 1 hotels according to user preferences, budget(budget provided to uh will of entire trip not just for hotel), interests. You MUST preserve the exact 'gps_coordinates' and 'nearby_places' provided in the source data.{feedback_clause}"),
+            ("human",  "Hotels Data:\n{hotels}\n\nVibe: {vibe}\n\n Trip Details: {trip_details}")
         ])
         best: HotelSelection = (eval_p | eval_llm).invoke({
             "hotels":    json.dumps(condensed, indent=2),
-            "vibe":      vibe
-        })
+            "vibe":      vibe,
+            "trip_details": trip,
+        }, config={"callbacks": [TelemetryCallbackHandler(tm)]})
         
         results = []
         for h in (best.best_hotels or []):
@@ -121,11 +128,10 @@ def hotel_agent(state: dict) -> dict:
                 "nearby_places":   h.nearby_places,
                 "details":         h.vibe_match_reasoning,
             })
-            log = f"✅ Hotel: {h.hotel_name} | GPS: {h.gps_coordinates}"
-            logs.append(log); print(log)
+            tm.info(f"✅ Hotel: {h.hotel_name} | GPS: {h.gps_coordinates}")
             
     except Exception as e:
-        logs.append(f"⚠️ LLM eval failed ({e}), using top raw result")
+        tm.warning(f"⚠️ LLM eval failed ({e}), using top raw result")
         # Fallback ensuring GPS/Nearby are preserved even on LLM error
         top = condensed[0]
         results = [{
@@ -137,5 +143,10 @@ def hotel_agent(state: dict) -> dict:
             "details": "LLM eval unavailable"
         }]
 
+    tm.info(f"✅ Hotel Selection Complete: Highly recommending {results[0]['name'] if results else 'N/A'}.", 
+            final_selection=results[0]['name'] if results else 'None')
+
+    all_hotels = [{"type": "hotel", "name": c["name"], "location": dest_city, "vibe": vibe, "rating": c["user_rating"], "cost_per_night": c["price_per_night_usd"], "gps_coordinates": c.get("gps_coordinates"), "nearby_places": c.get("nearby_places"), "details": c.get("description", "")[:100] + "..."} for c in condensed[:10]]
+
     tl = [{"id": str(uuid.uuid4()), "from": "hotel_agent", "to": "phase2_collector", "message": f"Recommended hotel: {results[0]['name'] if results else 'N/A'}"}]
-    return {"scraped_data": {"hotels": results}, "status_log": logs, "timeline": tl}
+    return {"scraped_data": {"hotels": results, "all_hotels": all_hotels}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries(), "timeline": tl}

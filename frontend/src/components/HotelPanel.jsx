@@ -6,22 +6,22 @@ const s = {
     border: '1px solid rgba(255,255,255,0.05)', padding: 24,
   },
   title: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '1.3rem', fontWeight: 800,
+    fontFamily: "'Playfair Display', sans-serif", fontSize: '1.3rem', fontWeight: 800,
     color: '#e2e8f0', marginBottom: 20,
   },
   section: {
     marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: '1.1rem', fontWeight: 700, color: '#6366f1',
+    fontSize: '1.1rem', fontWeight: 700, color: '#556B2F',
     textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 8,
   },
   hotelGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16, marginBottom: 24,
   },
   hotelCard: (selected) => ({
-    background: selected ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.03)',
-    border: selected ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.08)',
+    background: selected ? 'rgba(85,107,47,0.1)' : 'rgba(255,255,255,0.03)',
+    border: selected ? '2px solid #556B2F' : '1px solid rgba(255,255,255,0.08)',
     borderRadius: 12, padding: 16,
     cursor: 'pointer', transition: 'all .3s',
   }),
@@ -30,7 +30,7 @@ const s = {
     marginBottom: 12,
   },
   hotelName: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '1.1rem', fontWeight: 700,
+    fontFamily: "'Playfair Display', sans-serif", fontSize: '1.1rem', fontWeight: 700,
     color: '#e2e8f0', flex: 1,
   },
   rating: {
@@ -44,7 +44,7 @@ const s = {
     display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12,
   },
   tag: {
-    background: 'rgba(99,102,241,0.1)', color: '#818cf8',
+    background: 'rgba(85,107,47,0.1)', color: '#6B8E23',
     padding: '4px 8px', borderRadius: 6, fontSize: '.72rem', fontWeight: 600,
   },
   price: {
@@ -54,7 +54,7 @@ const s = {
      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12,
   },
   weatherCard: {
-     padding: 12, background: 'rgba(14,165,233,0.05)', borderRadius: 10, border: '1px solid rgba(14,165,233,0.1)',
+     padding: 12, background: 'rgba(85,107,47,0.05)', borderRadius: 10, border: '1px solid rgba(85,107,47,0.1)',
   },
   weatherDate: { fontWeight: 800, fontSize: '.9rem', color: '#e2e8f0', marginBottom: 4 },
   weatherTemps: { display: 'flex', justifyContent: 'space-between', fontSize: '.85rem', color: '#64748b' },
@@ -64,11 +64,11 @@ const s = {
   },
   approveButton: (disabled) => ({
     width: '100%', padding: '16px', border: 'none', borderRadius: 12,
-    background: disabled ? 'rgba(99,102,241,0.2)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff', fontFamily: "'Outfit', sans-serif", fontSize: '1rem', fontWeight: 700,
+    background: disabled ? 'rgba(85,107,47,0.2)' : 'linear-gradient(135deg, #556B2F, #3e4f20)',
+    color: '#fff', fontFamily: "'Playfair Display', sans-serif", fontSize: '1rem', fontWeight: 700,
     cursor: disabled ? 'not-allowed' : 'pointer',
     transition: 'all .3s', opacity: disabled ? 0.5 : 1,
-    boxShadow: disabled ? 'none' : '0 4px 20px rgba(99,102,241,0.3)',
+    boxShadow: disabled ? 'none' : '0 4px 20px rgba(85,107,47,0.3)',
   }),
   loading: {
     textAlign: 'center', padding: 40, color: '#64748b',
@@ -78,43 +78,57 @@ const s = {
 
 export default function HotelPanel({ scraped, phase2Done, onApprove, selectedHotel, setSelectedHotel, status }) {
   const hotels  = scraped?.hotels || []
+  const allHotels = scraped?.all_hotels || []
   const weather = scraped?.weather || []
   const news    = scraped?.news || []
 
   const isDisabled = status === 'running' || !phase2Done
 
+  const renderHotelCard = (h, i) => (
+    <div key={i} style={s.hotelCard(selectedHotel === h)} onClick={() => setSelectedHotel(h)}>
+      <div style={s.hotelHeader}>
+        <div style={s.hotelName}>{h.name}</div>
+        <div style={s.rating}>{h.rating} ⭐</div>
+      </div>
+      <div style={s.hotelDetails}>
+          <div><strong>Vibe Match:</strong> {h.details}</div>
+          <div style={{marginTop: 8}}><strong>Location:</strong> {h.location}</div>
+      </div>
+      {h.nearby_places?.length > 0 && (
+         <div style={s.tagContainer}>
+            {h.nearby_places.map((p, j) => <span key={j} style={s.tag}>📍 {p}</span>)}
+         </div>
+      )}
+      {h.gps_coordinates && <div style={{...s.tag, marginTop: 12, background: 'none', padding: 0}}>🧭 {h.gps_coordinates.latitude}, {h.gps_coordinates.longitude}</div>}
+      <div style={s.price}>${h.cost_per_night}/night</div>
+    </div>
+  )
+
   return (
     <div style={s.panel}>
-      <h2 style={s.title}>🏨 basecamp & Local Insights</h2>
+      <h2 style={s.title}>🛖 basecamp & Local Insights</h2>
       
       {(status === 'running' && !phase2Done) ? (
         <div style={s.loading}>Scanning hotels, checking weather, and gathering local news...</div>
       ) : (
         <>
-          <div style={s.section}>
-            <div style={s.sectionTitle}>🏨 Accommodations</div>
-            <div style={s.hotelGrid}>
-              {hotels.map((h, i) => (
-                <div key={i} style={s.hotelCard(selectedHotel === h)} onClick={() => setSelectedHotel(h)}>
-                  <div style={s.hotelHeader}>
-                    <div style={s.hotelName}>{h.name}</div>
-                    <div style={s.rating}>{h.rating} ⭐</div>
-                  </div>
-                  <div style={s.hotelDetails}>
-                      <div><strong>Vibe Match:</strong> {h.details}</div>
-                      <div style={{marginTop: 8}}><strong>Location:</strong> {h.location}</div>
-                  </div>
-                  {h.nearby_places?.length > 0 && (
-                     <div style={s.tagContainer}>
-                        {h.nearby_places.map((p, j) => <span key={j} style={s.tag}>📍 {p}</span>)}
-                     </div>
-                  )}
-                  {h.gps_coordinates && <div style={{...s.tag, marginTop: 12, background: 'none', padding: 0}}>🧭 {h.gps_coordinates.latitude}, {h.gps_coordinates.longitude}</div>}
-                  <div style={s.price}>${h.cost_per_night}/night</div>
-                </div>
-              ))}
+          {hotels.length > 0 && (
+            <div style={s.section}>
+              <div style={s.sectionTitle}>⭐ AI Selected Accommodations</div>
+              <div style={s.hotelGrid}>
+                {hotels.map(renderHotelCard)}
+              </div>
             </div>
-          </div>
+          )}
+
+          {allHotels.length > 0 && (
+            <div style={s.section}>
+              <div style={s.sectionTitle}>🛖 All Available Accommodations (Top 10)</div>
+              <div style={s.hotelGrid}>
+                {allHotels.map(renderHotelCard)}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24, marginBottom: 32 }}>
             <div style={s.section}>
@@ -123,7 +137,7 @@ export default function HotelPanel({ scraped, phase2Done, onApprove, selectedHot
                 {weather.map((w, i) => (
                   <div key={i} style={s.weatherCard}>
                     <div style={s.weatherDate}>{w.date}</div>
-                    <div style={{ fontSize: '.85rem', color: '#818cf8', fontWeight: 700 }}>{w.conditions}</div>
+                    <div style={{ fontSize: '.85rem', color: '#6B8E23', fontWeight: 700 }}>{w.conditions}</div>
                     <div style={s.weatherTemps}>
                       <span>MAX: {w.max_temp}{w.symbol}</span>
                       <span>MIN: {w.min_temp}{w.symbol}</span>
@@ -135,7 +149,7 @@ export default function HotelPanel({ scraped, phase2Done, onApprove, selectedHot
             </div>
 
             <div style={s.section}>
-              <div style={s.sectionTitle}>📰 Local News</div>
+              <div style={s.sectionTitle}>��️ Local News</div>
               <div>
                 {news.map((item, i) => (
                   <div key={i} style={s.newsCard}>
