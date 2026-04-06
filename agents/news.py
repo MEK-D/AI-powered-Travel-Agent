@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import json, os, requests, uuid
 from datetime import datetime
 import langchain
+from telemetry import TelemetryManager, TelemetryCallbackHandler
 
 class TravelNewsItem(BaseModel):
     headline: str = Field(description="The exact news headline")
@@ -20,8 +21,9 @@ class FilteredTravelNews(BaseModel):
     relevant_news: List[TravelNewsItem] = Field(description="List of news items that impact travel. Can be empty if no significant travel news exists.")
 
 def news_agent(state: dict) -> dict:
-    logs = ["📰 News Agent: Waking up and preparing Google News search..."]
-    print(logs[0])
+    tm = TelemetryManager("news_agent")
+    tm.info("📰 News Agent: Waking up and preparing Google News search...")
+    callback = TelemetryCallbackHandler(tm)
 
     trip = state.get("trip_details", {})
     dest_city = trip.get("destination", "Unknown")
@@ -35,8 +37,8 @@ def news_agent(state: dict) -> dict:
         if human_feedback else ""
     )
 
-    logs.append(f"📰 Fetching latest news for: {dest_city}")
-    print(logs[-1])
+    query = f"{dest_city} (travel OR tourism OR strike OR weather OR festival OR event)"
+    tm.info(f"📰 News Search: Querying Google News for {dest_city} travel impacts...", query=query)
 
     # --- STEP 1: Fetch Google News Data via SerpApi ---
     try:
@@ -51,10 +53,10 @@ def news_agent(state: dict) -> dict:
         response = requests.get("https://serpapi.com/search", params=params, timeout=20)
         response.raise_for_status()
         raw_news = response.json().get("news_results", [])
+        tm.info(f"📡 SerpApi Data Received: Found {len(raw_news)} raw news articles.", raw_count=len(raw_news))
     except Exception as e:
-        logs.append(f"❌ Failed to fetch SerpApi News data: {e}")
-        print(logs[-1])
-        return {"scraped_data": {"news": ["Could not fetch local news."]}, "status_log": logs}
+        tm.error(f"❌ Failed to fetch SerpApi News data: {e}")
+        return {"scraped_data": {"news": ["Could not fetch local news."]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # --- STEP 2: Condense the JSON payload ---
     condensed_news = []
@@ -66,12 +68,12 @@ def news_agent(state: dict) -> dict:
             condensed_news.append({"title": title, "snippet": snippet, "date": date})
 
     if not condensed_news:
-        logs.append(f"⚠️ No recent news found for {dest_city}.")
-        return {"scraped_data": {"news": ["No major recent news events found."]}, "status_log": logs}
+        tm.warning(f"⚠️ No recent news found for {dest_city}.")
+        return {"scraped_data": {"news": ["No major recent news events found."]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # --- STEP 3: LLM Evaluation with Cohere ---
-    logs.append(f"🧠 News Agent: Evaluating {len(condensed_news)} headlines for travel impact...")
-    print(logs[-1])
+    tm.info(f"🧠 Analysis: Evaluating {len(condensed_news)} potential headlines for travel relevance...", 
+            condensed_count=len(condensed_news), dest=dest_city)
 
     try:
         llm = ChatCohere(model="command-r-08-2024", temperature=0)
@@ -94,26 +96,26 @@ def news_agent(state: dict) -> dict:
         analyzed_news: FilteredTravelNews = (evaluation_prompt | evaluator_llm).invoke({
             "destination": dest_city,
             "news":        json.dumps(condensed_news, indent=2),
-        })
+        }, config={"callbacks": [callback]})
 
         # --- STEP 4: Format for LangGraph State ---
         final_news_data = []
 
         if not analyzed_news.relevant_news:
             final_news_data = ["No major travel-impacting news reported recently."]
-            logs.append("✅ No high-impact travel news found.")
+            tm.info("✅ No high-impact travel news found.")
         else:
             for n in analyzed_news.relevant_news:
                 formatted_item = f"[{n.severity_level} IMPACT] {n.headline} — {n.impact_summary}"
                 final_news_data.append(formatted_item)
-                log = f"✅ Extracted News: {formatted_item}"
-                logs.append(log)
-                print(log)
+            
+            tm.info(f"✅ Extraction Complete: Found {len(analyzed_news.relevant_news)} high-impact travel events.", 
+                    relevant_count=len(analyzed_news.relevant_news))
 
     except Exception as e:
-        logs.append(f"⚠️ LLM eval failed ({e}), using raw top headline.")
+        tm.warning(f"⚠️ LLM eval failed ({e}), using raw top headline.")
         top_headline = condensed_news[0]["title"]
         final_news_data = [f"Latest Headline: {top_headline}"]
 
     tl = [{"id": str(uuid.uuid4()), "from": "news_agent", "to": "phase2_collector", "message": f"News updates for {dest_city} retrieved."}]
-    return {"scraped_data": {"news": final_news_data}, "status_log": logs, "timeline": tl}
+    return {"scraped_data": {"news": final_news_data}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries(), "timeline": tl}

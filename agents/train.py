@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import json, os, requests, uuid
 from datetime import datetime
 import langchain
+from telemetry import TelemetryManager, TelemetryCallbackHandler
 
 class SelectedTrain(BaseModel):
     train_name: str = Field(description="Name or number of the train")
@@ -26,8 +27,9 @@ class TopTrainCandidates(BaseModel):
     option_ids: List[int] = Field(description="A list containing exactly the option_id of the top 3 selected trains.")
 
 def train_agent(state: dict) -> dict:
-    logs = ["🚆 Train Agent: Waking up and preparing RapidAPI IRCTC search..."]
-    print(logs[0])
+    tm = TelemetryManager("train_agent")
+    tm.info("🚆 Train Agent: Waking up and preparing RapidAPI IRCTC search...")
+    callback = TelemetryCallbackHandler(tm)
 
     trip = state.get("trip_details", {})
     task = state.get("agent_tasks", {}).get("train_agent", {})
@@ -45,8 +47,7 @@ def train_agent(state: dict) -> dict:
     rapidapi_key = os.getenv("RAPIDAPI_KEY")
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
 
-    logs.append(f"🚆 Route: {origin_city} → {dest_city} on {start_date} | Pref: {time_preference}, {seat_class} class")
-    print(logs[-1])
+    tm.info(f"🚆 Route: {origin_city} → {dest_city} on {start_date} | Pref: {time_preference}, {seat_class} class")
 
     # ── Human feedback from previous HITL interrupt ──────────────────────────
     human_feedback = state.get("human_feedback", "").strip()
@@ -62,11 +63,13 @@ def train_agent(state: dict) -> dict:
             "Respond with ONLY the official Indian Railway station code (uppercase, typically 2-4 letters) "
             "for the main railway station in {city}. No explanation. Example: New Delhi → NDLS, Mumbai → CSTM, Goa → MAO."
         )
-        origin_code = (station_prompt | llm).invoke({"city": origin_city}).content.strip().upper()
-        dest_code   = (station_prompt | llm).invoke({"city": dest_city}).content.strip().upper()
+        origin_code = (station_prompt | llm).invoke({"city": origin_city}, config={"callbacks": [callback]}).content.strip().upper()
+        dest_code   = (station_prompt | llm).invoke({"city": dest_city}, config={"callbacks": [callback]}).content.strip().upper()
+        tm.info(f"🚆 Route Mapping: {origin_city} → {origin_code}, {dest_city} → {dest_code}", 
+                origin_code=origin_code, dest_code=dest_code)
     except Exception as e:
-        logs.append(f"❌ Station code lookup failed: {e}")
-        return {"scraped_data": {"trains": [{"error": str(e)}]}, "status_log": logs}
+        tm.error(f"❌ Station code lookup failed: {e}")
+        return {"scraped_data": {"trains": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # --- STEP 2: Fetch ALL available trains ---
     try:
@@ -83,10 +86,11 @@ def train_agent(state: dict) -> dict:
         response = requests.get(url, headers=headers, params=querystring, timeout=20)
         response.raise_for_status()
         raw_trains = response.json().get("data", [])
+        tm.info(f"📡 RapidAPI Data Received: Found {len(raw_trains)} available train routes for this date.", 
+                raw_count=len(raw_trains))
     except Exception as e:
-        logs.append(f"❌ Train API error: {e}")
-        print(logs[-1])
-        return {"scraped_data": {"trains": [{"error": str(e)}]}, "status_log": logs}
+        tm.error(f"❌ Train API error: {e}")
+        return {"scraped_data": {"trains": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # Condense the JSON payload (No Fares yet)
     condensed_trains = []
@@ -108,12 +112,12 @@ def train_agent(state: dict) -> dict:
 
     if not condensed_trains:
         msg = f"No trains found for {origin_code} → {dest_code} on {start_date}."
-        logs.append(f"⚠️ {msg}")
-        return {"scraped_data": {"trains": [{"error": msg}]}, "status_log": logs}
+        tm.warning(f"⚠️ {msg}")
+        return {"scraped_data": {"trains": [{"error": msg}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # --- STEP 3: LLM Pass 1 - Filter to Top 3 (Based on Preferences) ---
-    logs.append("🧠 LLM Pass 1: Filtering raw trains down to Top 3 candidates...")
-    print(logs[-1])
+    tm.info(f"🧠 Analysis (Pass 1): Filtering {len(condensed_trains)} trains to find the top 3 matches for {time_preference}...", 
+            condensed_count=len(condensed_trains))
     try:
         eval_llm_1 = llm.with_structured_output(TopTrainCandidates)
         prompt_1 = ChatPromptTemplate.from_messages([
@@ -124,18 +128,19 @@ def train_agent(state: dict) -> dict:
             "trains": json.dumps(condensed_trains, indent=2),
             "time_preference": time_preference,
             "train_type": train_type
-        })
+        }, config={"callbacks": [callback]})
         
         # Extract the actual train objects based on the LLM's chosen IDs
         top_3_trains = [t for t in condensed_trains if t["option_id"] in top_candidates.option_ids][:3]
         if not top_3_trains: raise ValueError("LLM returned invalid option IDs.")
+        tm.info(f"✅ Pass 1 Complete: Shortlisted {len(top_3_trains)} trains (IDs: {top_candidates.option_ids}). Now fetching precise fares...")
     except Exception as e:
-        logs.append(f"⚠️ LLM Pass 1 failed ({e}). Defaulting to top 3 trains.")
+        tm.warning(f"⚠️ LLM Pass 1 failed ({e}). Defaulting to top 3 trains.")
         top_3_trains = condensed_trains[:3]
 
 
     # --- STEP 4: Fetch Fares ONLY for the Top 3 Trains ---
-    logs.append(f"🚆 Fetching precise fares for the 3 shortlisted trains...")
+    tm.info(f"🚆 Fetching precise fares for the 3 shortlisted trains...")
     enriched_top_3 = []
     
     for t in top_3_trains:
@@ -163,7 +168,7 @@ def train_agent(state: dict) -> dict:
                             elif isinstance(cls_val, (int, float)):
                                 fare_data[cls_key] = float(cls_val)
             except Exception as fe:
-                logs.append(f"⚠️ Fare fetch failed for train {train_number}: {fe}")
+                tm.warning(f"⚠️ Fare fetch failed for train {train_number}: {fe}")
 
         # Add the fare data to the train object
         t["class_fares"] = fare_data if fare_data else "Fare API unavailable"
@@ -171,8 +176,8 @@ def train_agent(state: dict) -> dict:
 
 
     # --- STEP 5: LLM Pass 2 - Final Selection (Based on Exact Budget & Price) ---
-    logs.append(f"🧠 LLM Pass 2: Selecting the single BEST train considering the ${total_budget} total budget...")
-    print(logs[-1])
+    tm.info(f"🧠 Analysis (Pass 2): Selecting the absolute best option considering the ${total_budget} budget constraint.", 
+            shortlist_count=len(enriched_top_3), budget=total_budget)
 
     try:
         eval_llm_2 = llm.with_structured_output(TrainSelection)
@@ -196,7 +201,7 @@ def train_agent(state: dict) -> dict:
             "trains":       json.dumps(enriched_top_3, indent=2),
             "total_budget": total_budget,
             "seat_class":   seat_class,
-        })
+        }, config={"callbacks": [callback]})
 
         # --- STEP 6: Format Output for LangGraph State ---
         # Even though the LLM might return a list of 1 inside `best_trains`, we'll parse it out safely.
@@ -211,12 +216,10 @@ def train_agent(state: dict) -> dict:
                 "cost":       t.price,
                 "details":    t.reasoning,
             })
-            log = f"✅ Final Selected Train: {t.train_name} | ₹{t.price} | Reason: {t.reasoning[:50]}..."
-            logs.append(log)
-            print(log)
+            tm.info(f"✅ Final Selected Train: {t.train_name} | ₹{t.price} | Reason: {t.reasoning[:50]}...")
 
     except Exception as e:
-        logs.append(f"⚠️ LLM Pass 2 failed ({e}), using top raw result from shortlist")
+        tm.warning(f"⚠️ LLM Pass 2 failed ({e}), using top raw result from shortlist")
         fallback_train = enriched_top_3[0]
         fallback_fares = fallback_train.get("class_fares", {})
         fallback_price = list(fallback_fares.values())[0] if isinstance(fallback_fares, dict) and fallback_fares else 0.0
@@ -231,5 +234,7 @@ def train_agent(state: dict) -> dict:
             "details":    "LLM final eval unavailable, auto-selected top shortlisted train.",
         }]
 
+    all_trains = [{"type": "train", "train_name": c["train_name"], "departure": c["departure_time"], "arrival": c["arrival_time"], "duration": c.get("duration", ""), "cost": c.get("class_fares") if isinstance(c.get("class_fares"), (int, float)) else list(c.get("class_fares", {}).values())[0] if isinstance(c.get("class_fares"), dict) and c.get("class_fares") else 0, "details": "Number: " + c.get("train_number", "")} for c in condensed_trains[:10]]
+
     tl = [{"id": str(uuid.uuid4()), "from": "train_agent", "to": "phase1_collector", "message": f"Recommended train: {results[0]['train_name'] if results else 'N/A'}"}]
-    return {"scraped_data": {"trains": results}, "status_log": logs, "timeline": tl}
+    return {"scraped_data": {"trains": results, "all_trains": all_trains}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries(), "timeline": tl}

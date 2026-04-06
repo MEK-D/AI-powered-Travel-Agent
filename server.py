@@ -105,6 +105,12 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
             logs = chunk.get("status_log", [])
             for log in logs[-1:]:
                 _push(q, "agent_log", {"message": log})
+            
+            # Stream the latest telemetry entries
+            telemetry = chunk.get("telemetry", [])
+            if telemetry:
+                _push(q, "agent_telemetry", {"telemetry": telemetry[-1:]}) # Push the most recent entry
+
             scraped = chunk.get("scraped_data", {})
             if scraped:
                 _push(q, "scraped_update", {"scraped_data": scraped})
@@ -118,7 +124,7 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
             
             # Debug: what keys moved in this chunk?
             k = list(chunk.keys())
-            if "status_log" in k or "scraped_data" in k:
+            if "status_log" in k or "scraped_data" in k or "telemetry" in k:
                 print(f"DEBUG: Chunk yielding keys: {k}")
 
     except Exception as e:
@@ -145,6 +151,7 @@ def _run_graph(thread_id: str, input_val, q: queue.Queue):
         "trip_details":       vals.get("trip_details", {}),
         "final_itinerary":    vals.get("final_itinerary", ""),
         "status_log":         vals.get("status_log", []),
+        "telemetry":          vals.get("telemetry", []),
         "timeline":           vals.get("timeline", []),
         "hitl_action":        vals.get("hitl_action", ""),
         "last_approved_phase": vals.get("last_approved_phase", ""),

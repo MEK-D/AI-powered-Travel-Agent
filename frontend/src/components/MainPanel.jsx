@@ -5,22 +5,23 @@ import HotelPanel from './HotelPanel'
 import ItineraryPanel from './ItineraryPanel'
 import ChatPanel from './ChatPanel'
 import HitlPanel from './HitlPanel'
-import AnimatedLog from './AnimatedLog'
+import TelemetryViewer from './TelemetryViewer'
 import TripForm from './TripForm'
 import ActivitiesPanel from './ActivitiesPanel'
+import BookingPanel from './BookingPanel'
 
 const s = {
   mainPanel: {
     flex: 1, display: 'flex', flexDirection: 'column',
-    background: '#0a0f1a', overflow: 'hidden',
+    background: '#0a0a00', overflow: 'hidden',
   },
   tabBar: {
-    display: 'flex', background: '#0d1117', borderBottom: '1px solid rgba(255,255,255,0.07)',
+    display: 'flex', background: '#0a0a00', borderBottom: '1px solid rgba(255,255,255,0.07)',
     padding: '0 24px',
   },
   tab: (active) => ({
-    padding: '18px 24px', background: 'none', border: 'none', borderBottom: active ? '2px solid #6366f1' : '2px solid transparent',
-    color: active ? '#e2e8f0' : '#64748b', fontFamily: "'Outfit', sans-serif", fontSize: '.95rem', fontWeight: 700,
+    padding: '18px 24px', background: 'none', border: 'none', borderBottom: active ? '2px solid #556B2F' : '2px solid transparent',
+    color: active ? '#e2e8f0' : '#64748b', fontFamily: "'Playfair Display', sans-serif", fontSize: '.95rem', fontWeight: 700,
     cursor: 'pointer', transition: 'all .2s', marginRight: 8,
     '&:hover': { color: active ? '#e2e8f0' : '#94a3b8' },
   }),
@@ -32,7 +33,7 @@ const s = {
     overflowY: 'auto',
   },
   summaryBar: {
-    padding: '12px 24px', background: 'rgba(99,102,241,0.05)', borderBottom: '1px solid rgba(99,102,241,0.1)',
+    padding: '12px 24px', background: 'rgba(85,107,47,0.05)', borderBottom: '1px solid rgba(85,107,47,0.1)',
     display: 'flex', gap: 20, alignItems: 'center', fontSize: '.85rem', color: '#94a3b8',
   },
   summaryItem: {
@@ -56,12 +57,12 @@ const TripSummary = ({ trip }) => {
 }
 
 const TABS = [
-  { id: 0, label: '🧠 Orchestration', icon: '🧠' },
-  { id: 1, label: '🚆 Transportation', icon: '🚆' },
-  { id: 2, label: '🏨 Basecamp', icon: '🏨' },
-  { id: 3, label: '🍽️ Experiences', icon: '🍽️' },
-  { id: 4, label: '🗺️ Dossier', icon: '🗺️' },
-  { id: 5, label: '💬 Chat', icon: '💬' },
+  { id: 0, label: '♟️ Orchestration', icon: '♟️' },
+  { id: 1, label: '🚂 Transportation', icon: '🚂' },
+  { id: 2, label: '🛖 Basecamp', icon: '🛖' },
+  { id: 3, label: '🍷 Experiences', icon: '🍷' },
+  { id: 4, label: '📜 Dossier', icon: '📜' },
+  { id: 6, label: '🎟️ Bookings', icon: '🎟️' },
 ]
 
 export default function MainPanel({
@@ -81,53 +82,28 @@ export default function MainPanel({
   setSelectedFlight,
   selectedHotel,
   setSelectedHotel,
+  bookingStatus,
+  setBookingStatus,
   status,
   agentStates,
   timeline,
   currentTrip,
-  logs,
+  telemetry,
 }) {
   if (status === 'idle') {
     return (
       <main style={s.mainPanel}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '40px 20px' }}>
           <TripForm onStart={onStartSession} />
-          <div style={{ marginTop: 40, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
-             <div style={{ fontSize: '.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 14 }}>System Telemetry</div>
-             <AnimatedLog logs={logs} height={200} />
+          <div style={{ marginTop: 40 }}>
+             <TelemetryViewer telemetry={telemetry} height={250} />
           </div>
         </div>
       </main>
     )
   }
 
-  if (status === 'paused' && hitl) {
-    return (
-      <main style={s.mainPanel}>
-        <div style={s.tabBar}>
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              style={s.tab(activeTab === tab.id)}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <TripSummary trip={currentTrip} />
-        <div style={s.content}>
-          <div style={s.panelContainer}>
-            <HitlPanel hitl={hitl} onSend={onHitlSend} disabled={false} />
-            <div style={{ marginTop: 24, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
-               <div style={{ fontSize: '.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 14 }}>System Telemetry</div>
-               <AnimatedLog logs={logs} height={300} />
-            </div>
-          </div>
-        </div>
-      </main>
-    )
-  }
+  // The early return that formerly hid the active tab is removed.
 
   const renderPanel = () => {
     switch (activeTab) {
@@ -179,11 +155,15 @@ export default function MainPanel({
             scraped={scraped}
           />
         )
-      case 5:
+      case 6:
         return (
-          <ChatPanel
-            status={status}
-            isDone={isDone}
+          <BookingPanel
+            selectedFlight={selectedFlight}
+            selectedHotel={selectedHotel}
+            scraped={scraped}
+            currentTrip={currentTrip}
+            bookingStatus={bookingStatus}
+            setBookingStatus={setBookingStatus}
           />
         )
       default:
@@ -208,9 +188,15 @@ export default function MainPanel({
       <div style={s.content}>
         <div style={s.panelContainer}>
           {renderPanel()}
-          <div style={{ marginTop: 32, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
-             <div style={{ fontSize: '.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 14 }}>System Telemetry</div>
-             <AnimatedLog logs={logs} height={350} />
+          
+          {status === 'paused' && hitl && (
+            <div style={{ marginTop: 24, padding: 24, background: 'rgba(85,107,47,0.05)', borderRadius: 16, border: '1px solid rgba(85,107,47,0.1)' }}>
+              <HitlPanel hitl={hitl} onSend={onHitlSend} disabled={false} />
+            </div>
+          )}
+
+          <div style={{ marginTop: 32 }}>
+             <TelemetryViewer telemetry={telemetry} height={400} />
           </div>
         </div>
       </div>

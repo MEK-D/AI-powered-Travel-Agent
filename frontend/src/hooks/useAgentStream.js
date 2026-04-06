@@ -24,6 +24,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   const [status,   setStatus]           = useState('idle')   // idle | running | paused | done | error
   const [lastPrompt, setLastPrompt]     = useState('')
   const [logs,     setLogs]             = useState([])
+  const [telemetry, setTelemetry]       = useState([])
   const [agentStates, setAgentStates]   = useState({})
   const [scraped,  setScraped]          = useState({})
   const [hitl, setHitl]                 = useState(null)
@@ -40,6 +41,10 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [...prev.slice(-80), msg])
+  }, [])
+
+  const addTelemetry = useCallback((entries) => {
+    setTelemetry(prev => [...prev, ...entries])
   }, [])
 
   const mergeScraped = useCallback((incoming) => {
@@ -75,6 +80,10 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
     es.addEventListener('connected',      () => addLog('🔗 Connected to agent stream'))
     es.addEventListener('agent_log',      e  => addLog(JSON.parse(e.data).message))
+    es.addEventListener('agent_telemetry', e => {
+      const data = JSON.parse(e.data)
+      if (data.telemetry) addTelemetry(data.telemetry)
+    })
     es.addEventListener('scraped_update', e  => {
         const data = JSON.parse(e.data);
         console.log('📡 SSE: scraped_update', data);
@@ -186,7 +195,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       setStatus('error')
       addLog('⚠️ SSE connection issue...')
     }
-  }, [addLog, mergeScraped])
+  }, [addLog, addTelemetry, mergeScraped])
 
   const startSession = useCallback(async (prompt, tripDetails) => {
     const actualPrompt = prompt || lastPrompt
@@ -271,7 +280,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   const reset = useCallback(() => {
     if (esRef.current) esRef.current.close()
     setThreadId(null); setStatus('idle'); setLogs([])
-    setAgentStates({}); setScraped({}); setFinal(''); setHitl(null); setError(null)
+    setAgentStates({}); setScraped({}); setFinal(''); setHitl(null); setError(null); setTelemetry([])
     setPhase1Done(false); setPhase2Done(false); setPhase3Done(false); setIsDone(false); setTimeline([]); setMessages([])
   }, [])
 
@@ -302,6 +311,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       setFinal(s.final_itinerary || '')
       setTimeline(s.timeline || [])
       setLastPrompt(s.user_request || '')
+      setTelemetry(s.telemetry || [])
       
       if (data.interrupt_payloads?.length > 0) {
         setHitl(data.interrupt_payloads[data.interrupt_payloads.length - 1])
@@ -325,7 +335,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   }, [reset, addLog])
 
   return { 
-    threadId, status, error, hitl, logs, agentStates, scraped, timeline, 
+    threadId, status, error, hitl, logs, telemetry, agentStates, scraped, timeline, 
     phase1Done, phase2Done, phase3Done, isDone, finalItinerary, messages, threadList,
     startSession, approve, resume, reset, retry, fetchThreads, loadThread 
   }

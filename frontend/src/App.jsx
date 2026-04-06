@@ -7,12 +7,12 @@ import { useAgentStream } from './hooks/useAgentStream'
 import { useEffect } from 'react'
 
 const AGENT_META = [
-  { id: 'orchestrator',     name: 'Orchestrator',      icon: '🧠', sub: 'Plans & routes tasks',    phase: 0 },
-  { id: 'flight_agent',     name: 'Flight Agent',       icon: '✈️', sub: 'SerpApi Google Flights',  phase: 1 },
-  { id: 'train_agent',      name: 'Train Agent',        icon: '🚆', sub: 'Transport alternatives',  phase: 1 },
-  { id: 'hotel_agent',      name: 'Hotel Agent',        icon: '🏨', sub: 'SerpApi Google Hotels',   phase: 2 },
+  { id: 'orchestrator',     name: 'Orchestrator',      icon: '♟️', sub: 'Plans & routes tasks',    phase: 0 },
+  { id: 'flight_agent',     name: 'Flight Agent',       icon: '🛩️', sub: 'Google Flights',  phase: 1 },
+  { id: 'train_agent',      name: 'Train Agent',        icon: '🚂', sub: 'Transport alternatives',  phase: 1 },
+  { id: 'hotel_agent',      name: 'Hotel Agent',        icon: '🛖', sub: 'Google Hotels',   phase: 2 },
   { id: 'weather_agent',    name: 'Weather Agent',      icon: '🌦', sub: 'Live forecast',           phase: 2 },
-  { id: 'news_agent',       name: 'News Agent',         icon: '📰', sub: 'Events & local tips',     phase: 2 },
+  { id: 'news_agent',       name: 'News Agent',         icon: '��️', sub: 'Events & local tips',     phase: 2 },
   { id: 'restaurant_agent', name: 'Restaurant Agent',   icon: '🍽', sub: 'Dining finder',           phase: 3 },
   { id: 'site_seeing_agent', name: 'Sightseeing Agent',  icon: '🏛', sub: 'Local attractions',      phase: 3 },
   { id: 'itinerary_agent',  name: 'Itinerary Agent',    icon: '🗺', sub: 'Day-by-day planner',      phase: 4 },
@@ -23,9 +23,10 @@ export default function App() {
   const [selectedFlight, setSelectedFlight] = useState(null)
   const [selectedHotel, setSelectedHotel]   = useState(null)
   const [currentTrip, setCurrentTrip]       = useState(null)
+  const [bookingStatus, setBookingStatus]   = useState({ transport: 'idle', hotel: 'idle' })
 
   const {
-    threadId, status, error, hitl, logs, agentStates, scraped, timeline,
+    threadId, status, error, hitl, logs, telemetry, agentStates, scraped, timeline,
     phase1Done, phase2Done, phase3Done, isDone, finalItinerary,
     messages, threadList,
     startSession, approve, resume, reset, retry, fetchThreads, loadThread,
@@ -55,6 +56,7 @@ export default function App() {
     setSelectedFlight(null)
     setSelectedHotel(null)
     setCurrentTrip(tripDetails)
+    setBookingStatus({ transport: 'idle', hotel: 'idle' })
     setActiveTab(0)
     await startSession(promptVal, tripDetails)
   }, [startSession, reset])
@@ -73,13 +75,26 @@ export default function App() {
   }, [approve])
 
   const handleHitlSend = useCallback(async (text) => {
+    const d = text.trim().toLowerCase()
+    if (d === 'yes' || d === 'y' || d === 'approve' || d === 'ok' || d === 'proceed' || d === '') {
+       if (hitl?.phase === 'orchestrator') {
+         setActiveTab(1)
+       } else if (hitl?.phase === 'transport') {
+         setActiveTab(2)
+       } else if (hitl?.phase === 'basecamp') {
+         setActiveTab(3)
+       } else if (hitl?.phase === 'activities') {
+         setActiveTab(4)
+       }
+    }
     await resume(text)
-  }, [resume])
+  }, [resume, hitl])
 
   const handleResetAll = useCallback(() => {
     reset()
     setSelectedFlight(null)
     setSelectedHotel(null)
+    setBookingStatus({ transport: 'idle', hotel: 'idle' })
     setActiveTab(0)
     localStorage.removeItem('travel_agent_thread_id')
   }, [reset])
@@ -103,7 +118,7 @@ export default function App() {
           gap: 12,
           flexShrink: 0,
         }}>
-          <div style={{ fontWeight: 800, fontFamily: "'Outfit', sans-serif" }}>❌ Connection / Runtime Error</div>
+          <div style={{ fontWeight: 800, fontFamily: "'Playfair Display', sans-serif" }}>❌ Connection / Runtime Error</div>
           <div style={{ color: '#fca5a5', fontSize: '.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
             {String(error)}
           </div>
@@ -117,7 +132,7 @@ export default function App() {
               color: '#bbf7d0',
               cursor: 'pointer',
               fontWeight: 800,
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: "'Playfair Display', sans-serif",
               marginRight: 8,
             }}
           >
@@ -133,7 +148,7 @@ export default function App() {
               color: '#e2e8f0',
               cursor: 'pointer',
               fontWeight: 800,
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: "'Playfair Display', sans-serif",
             }}
           >
             Reset
@@ -170,11 +185,14 @@ export default function App() {
           setSelectedFlight={setSelectedFlight}
           selectedHotel={selectedHotel}
           setSelectedHotel={setSelectedHotel}
+          bookingStatus={bookingStatus}
+          setBookingStatus={setBookingStatus}
           status={status}
           agentStates={agentStates}
           timeline={timeline}
           currentTrip={currentTrip}
           logs={logs}
+          telemetry={telemetry}
         />
       </div>
     </div>

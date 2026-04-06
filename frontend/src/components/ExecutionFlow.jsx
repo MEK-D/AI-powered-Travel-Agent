@@ -10,7 +10,7 @@ const s = {
     marginBottom: 16,
   },
   title: {
-    fontFamily: "'Outfit', sans-serif",
+    fontFamily: "'Playfair Display', sans-serif",
     fontWeight: 900,
     fontSize: '.9rem',
     color: '#e2e8f0',
@@ -38,7 +38,7 @@ const s = {
     textTransform: 'uppercase',
     border: '1px solid rgba(255,255,255,0.08)',
     ...(tone === 'from'
-      ? { background: 'rgba(99,102,241,0.10)', color: '#c7d2fe' }
+      ? { background: 'rgba(85,107,47,0.10)', color: '#c7d2fe' }
       : tone === 'to'
         ? { background: 'rgba(16,185,129,0.10)', color: '#bbf7d0' }
         : { background: 'rgba(255,255,255,0.04)', color: '#94a3b8' }),

@@ -10,15 +10,15 @@ const s = {
     padding: 24,
   },
   title: {
-    fontFamily: "'Outfit', sans-serif",
+    fontFamily: "'Playfair Display', sans-serif",
     fontSize: '1.2rem',
     fontWeight: 800,
     color: '#e2e8f0',
     marginBottom: 12,
   },
   message: {
-    background: 'rgba(99,102,241,0.08)',
-    border: '1px solid rgba(99,102,241,0.18)',
+    background: 'rgba(85,107,47,0.08)',
+    border: '1px solid rgba(85,107,47,0.18)',
     borderRadius: 12,
     padding: 14,
     color: '#c7d2fe',
@@ -59,7 +59,7 @@ const s = {
   },
   input: (disabled) => ({
     width: '100%',
-    background: disabled ? 'rgba(255,255,255,0.02)' : '#0a0f1a',
+    background: disabled ? 'rgba(255,255,255,0.02)' : '#0a0a00',
     border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 12,
     color: '#e2e8f0',
@@ -82,12 +82,12 @@ const s = {
     border: 'none',
     borderRadius: 12,
     cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: "'Outfit', sans-serif",
+    fontFamily: "'Playfair Display', sans-serif",
     fontWeight: 800,
     letterSpacing: '.02em',
     opacity: disabled ? 0.6 : 1,
     ...(kind === 'primary'
-      ? { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff' }
+      ? { background: 'linear-gradient(135deg, #556B2F, #3e4f20)', color: '#fff' }
       : { background: 'rgba(239,68,68,0.16)', color: '#fecaca', border: '1px solid rgba(239,68,68,0.25)' }),
   }),
   hint: {
@@ -104,16 +104,17 @@ export default function HitlPanel({ hitl, onSend, disabled }) {
   const phaseTitle = useMemo(() => {
     const p = hitl?.phase
     if (!p) return 'Awaiting Input'
-    if (p === 'orchestrator') return '🧠 Orchestrator Approval'
-    if (p === 'transport') return '✈️🚆 Transport Review'
-    if (p === 'basecamp') return '🏨🌦📰 Basecamp Review'
-    if (p === 'activities') return '🍽️🏛 Activities Review'
-    if (p === 'itinerary') return '🗺️ Itinerary Review'
+    if (p === 'orchestrator') return '♟️ Orchestrator Approval'
+    if (p === 'transport') return '🛩️🚂 Transport Review'
+    if (p === 'basecamp') return '🛖🌦��️ Basecamp Review'
+    if (p === 'activities') return '🍷🏛 Activities Review'
+    if (p === 'itinerary') return '📜 Itinerary Review'
     return `Phase: ${p}`
   }, [hitl])
 
   const payloadPreview = useMemo(() => {
     if (!hitl) return null
+    if (hitl.phase === 'itinerary') return null // Suppress rendering the huge itinerary here
     return hitl
   }, [hitl])
 
@@ -141,12 +142,14 @@ export default function HitlPanel({ hitl, onSend, disabled }) {
         {hitl?.message || 'The graph is waiting for your input.'}
       </div>
 
-      <div style={s.meta}>
-        <div style={{...s.card, width: '100%'}}>
-          <div style={s.cardTitle}>Phase Data Summary</div>
-          <PayloadVisualizer payload={payloadPreview} />
+      {payloadPreview && (
+        <div style={s.meta}>
+          <div style={{...s.card, width: '100%'}}>
+            <div style={s.cardTitle}>Phase Data Summary</div>
+            <PayloadVisualizer payload={payloadPreview} />
+          </div>
         </div>
-      </div>
+      )}
 
       <textarea
         style={s.input(disabled)}

@@ -6,7 +6,7 @@ const s = {
     padding: '4px 2px',
   },
   progressTitle: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '.7rem', fontWeight: 800,
+    fontFamily: "'Playfair Display', sans-serif", fontSize: '.7rem', fontWeight: 800,
     color: '#64748b', marginBottom: 14, textTransform: 'uppercase',
     letterSpacing: '.12em', display: 'flex', justifyContent: 'space-between'
   },
@@ -15,10 +15,10 @@ const s = {
   },
   phase: (active, completed) => ({
     flex: 1, height: 4, borderRadius: 2,
-    background: completed ? 'linear-gradient(90deg, #10b981, #34d399)' : active ? 'linear-gradient(90deg, #6366f1, #818cf8)' : 'rgba(255,255,255,0.05)',
+    background: completed ? 'linear-gradient(90deg, #10b981, #34d399)' : active ? 'linear-gradient(90deg, #556B2F, #6B8E23)' : 'rgba(255,255,255,0.05)',
     transition: 'all .6s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative',
     overflow: 'hidden',
-    boxShadow: active ? '0 0 10px rgba(99,102,241,0.3)' : 'none',
+    boxShadow: active ? '0 0 10px rgba(85,107,47,0.3)' : 'none',
   }),
   phaseLabels: {
     display: 'flex', justifyContent: 'space-between', marginBottom: 20
@@ -48,9 +48,9 @@ const s = {
     transition: 'all .3s cubic-bezier(0.4, 0, 0.2, 1)',
     cursor: 'default',
     ...(status === 'running' ? {
-      background: 'rgba(99,102,241,.15)', color: '#818cf8',
-      border: '1px solid rgba(99,102,241,.3)',
-      boxShadow: '0 0 12px rgba(99,102,241,0.2)',
+      background: 'rgba(85,107,47,.15)', color: '#6B8E23',
+      border: '1px solid rgba(85,107,47,.3)',
+      boxShadow: '0 0 12px rgba(85,107,47,0.2)',
     } : status === 'done' ? {
       background: 'rgba(16,185,129,.12)', color: '#34d399',
       border: '1px solid rgba(16,185,129,.25)',
@@ -118,7 +118,7 @@ export default function AgentProgressBar({ agentStates, status }) {
               background: phaseProgress[index] === 100 
                 ? 'linear-gradient(90deg, #10b981, #34d399)' 
                 : index === currentPhase 
-                  ? ['linear-gradient(90deg, #6366f1, #818cf8)', 'linear-gradient(90deg, #818cf8, #6366f1)'] 
+                  ? ['linear-gradient(90deg, #556B2F, #6B8E23)', 'linear-gradient(90deg, #6B8E23, #556B2F)'] 
                   : 'rgba(255,255,255,0.05)'
             }}
             transition={{

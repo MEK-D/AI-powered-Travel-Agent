@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import json, os, requests, uuid
 from datetime import datetime
 import langchain
+from telemetry import TelemetryManager, TelemetryCallbackHandler
 
 class DailyWeather(BaseModel):
     date: str = Field(description="Date of the forecast (YYYY-MM-DD).")
@@ -24,8 +25,9 @@ class WeatherForecast(BaseModel):
     
 
 def weather_agent(state: dict) -> dict:
-    logs = ["🌦 Weather Agent: Fetching forecast from Visual Crossing API..."]
-    print(logs[0])
+    tm = TelemetryManager("weather_agent")
+    tm.info("🌦 Weather Agent: Fetching forecast from Visual Crossing API...")
+    callback = TelemetryCallbackHandler(tm)
 
     trip = state.get("trip_details", {})
     task = state.get("agent_tasks", {}).get("weather_agent", {})
@@ -51,8 +53,8 @@ def weather_agent(state: dict) -> dict:
 
     if not api_key:
         msg = "⚠️ Missing VISUAL_CROSSING_API_KEY in environment."
-        logs.append(msg); print(msg)
-        return {"scraped_data": {"weather": [{"error": msg}]}, "status_log": logs}
+        tm.warning(msg)
+        return {"scraped_data": {"weather": [{"error": msg}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # --- STEP 1: Fetch Raw Data from Visual Crossing ---
     try:
@@ -63,13 +65,14 @@ def weather_agent(state: dict) -> dict:
             "key": api_key,
             "contentType": "json"
         }
+        tm.info(f"🌦 Weather Search: Fetching {unit_group} forecast for {dest_city} ({start_date} to {end_date})", city=dest_city, units=unit_group)
         resp = requests.get(url, params=params, timeout=15)
         resp.raise_for_status()
         raw_weather_data = resp.json().get("days", [])
+        tm.info(f"📡 API Data Received: Retrieved {len(raw_weather_data)} days of weather data from Visual Crossing.", raw_count=len(raw_weather_data))
     except Exception as e:
-        logs.append(f"❌ Weather API error: {e}")
-        print(logs[-1])
-        return {"scraped_data": {"weather": [{"error": str(e)}]}, "status_log": logs}
+        tm.error(f"❌ Weather API error: {e}")
+        return {"scraped_data": {"weather": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # --- STEP 2: Condense the massive JSON payload ---
     condensed_weather = []
@@ -84,11 +87,12 @@ def weather_agent(state: dict) -> dict:
         })
 
     if not condensed_weather:
-        return {"scraped_data": {"weather": [{"error": "No weather data returned for these dates."}]}, "status_log": logs}
+        tm.warning("⚠️ No weather data returned for these dates.")
+        return {"scraped_data": {"weather": [{"error": "No weather data returned for these dates."}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # --- STEP 3: LLM Analysis & Structuring ---
-    logs.append(f"🧠 Weather Agent: LLM structuring {len(condensed_weather)} days of weather and generating travel advice...")
-    print(logs[-1])
+    tm.info(f"🧠 Analysis: Structuring {len(condensed_weather)} days of weather data and generating persona-based travel tips.", 
+            condensed_count=len(condensed_weather))
 
     try:
         llm = ChatCohere(model="command-r-08-2024", temperature=0)
@@ -105,7 +109,7 @@ def weather_agent(state: dict) -> dict:
             "destination": dest_city,
             "units": "Celsius" if unit_group == "metric" else "Fahrenheit",
             "weather_data": json.dumps(condensed_weather, indent=2)
-        })
+        }, config={"callbacks": [callback]})
 
         # --- STEP 4: Format for State ---
         results = []
@@ -120,16 +124,17 @@ def weather_agent(state: dict) -> dict:
                 "travel_advice": day.travel_advice,
                 "symbol": temp_symbol
             })
-            log = f"✅ Weather [{day.date}]: {day.conditions}, {day.max_temp}{temp_symbol} / {day.min_temp}{temp_symbol} | Tip: {day.travel_advice}"
-            logs.append(log); print(log)
+            tm.info(f"✅ Weather [{day.date}]: {day.conditions}, {day.max_temp}{temp_symbol} / {day.min_temp}{temp_symbol} | Tip: {day.travel_advice}")
 
     except Exception as e:
-        logs.append(f"⚠️ LLM eval failed ({e}), using raw condensed data.")
+        tm.warning(f"⚠️ LLM eval failed ({e}), using raw condensed data.")
         results = [{
             "date": d["date"], "max_temp": d["max_temp"], "min_temp": d["min_temp"],
             "conditions": d["conditions"], "travel_advice": f"Prepare for {d['conditions']}",
             "symbol": temp_symbol
         } for d in condensed_weather]
 
+    tm.info(f"✅ Forecast Ready: Generated actionable weather advice for {len(results)} days in {dest_city}.", 
+            final_count=len(results))
     tl = [{"id": str(uuid.uuid4()), "from": "weather_agent", "to": "phase2_collector", "message": f"Weather forecast for {dest_city} retrieved."}]
-    return {"scraped_data": {"weather": results}, "status_log": logs, "timeline": tl}
+    return {"scraped_data": {"weather": results}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries(), "timeline": tl}

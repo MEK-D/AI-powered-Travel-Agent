@@ -7,11 +7,11 @@ const s = {
     display: 'flex', flexDirection: 'column',
   },
   header: {
-    padding: '24px 30px', background: 'linear-gradient(90deg, rgba(99,102,241,0.08), transparent)',
+    padding: '24px 30px', background: 'linear-gradient(90deg, rgba(85,107,47,0.08), transparent)',
     borderBottom: '1px solid rgba(255,255,255,0.05)',
   },
   title: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '1.5rem', fontWeight: 900,
+    fontFamily: "'Playfair Display', sans-serif", fontSize: '1.5rem', fontWeight: 900,
     color: '#e2e8f0', margin: 0, display: 'flex', alignItems: 'center', gap: 12,
   },
   subTitle: {
@@ -40,7 +40,7 @@ const s = {
     display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 10,
   },
   cardIcon: { fontSize: '1.4rem' },
-  cardTitle: { fontSize: '.8rem', fontWeight: 900, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '.1em' },
+  cardTitle: { fontSize: '.8rem', fontWeight: 900, color: '#556B2F', textTransform: 'uppercase', letterSpacing: '.1em' },
   cardValue: { fontSize: '1rem', fontWeight: 700, color: '#e2e8f0' },
   cardSub: { fontSize: '.8rem', color: '#64748b', lineheight: 1.4 },
   loading: {
@@ -54,7 +54,7 @@ export default function ItineraryPanel({ finalItinerary, isDone, scraped }) {
     return (
       <div style={s.panel}>
         <div style={s.loading}>
-          <div style={{ fontSize: '3rem', opacity: 0.5 }}>🗺️</div>
+          <div style={{ fontSize: '3rem', opacity: 0.5 }}>📜</div>
           <div>Your master travel plan is being synthesized...</div>
         </div>
       </div>
@@ -69,7 +69,7 @@ export default function ItineraryPanel({ finalItinerary, isDone, scraped }) {
   return (
     <div style={s.panel}>
       <div style={s.header}>
-        <h2 style={s.title}>🗺️ Complete Travel Dossier</h2>
+        <h2 style={s.title}>📜 Complete Travel Dossier</h2>
         <div style={s.subTitle}>Synthesized by your AI Concierge team</div>
       </div>
 
@@ -78,7 +78,7 @@ export default function ItineraryPanel({ finalItinerary, isDone, scraped }) {
         <div style={s.summaryGrid}>
           <div style={s.card}>
             <div style={s.cardHeader}>
-               <span style={s.cardIcon}>✈️</span>
+               <span style={s.cardIcon}>🛩️</span>
                <span style={s.cardTitle}>Primary Transport</span>
             </div>
             {f ? (
@@ -98,7 +98,7 @@ export default function ItineraryPanel({ finalItinerary, isDone, scraped }) {
 
           <div style={s.card}>
             <div style={s.cardHeader}>
-               <span style={s.cardIcon}>🏨</span>
+               <span style={s.cardIcon}>🛖</span>
                <span style={s.cardTitle}>Basecamp</span>
             </div>
             {h ? (

@@ -9,7 +9,7 @@ const s = {
     marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.05)',
   },
   label: {
-    fontSize: '.75rem', fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 12,
+    fontSize: '.75rem', fontWeight: 800, color: '#556B2F', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 12,
     display: 'flex', alignItems: 'center', gap: 8,
   },
   grid: {
@@ -42,11 +42,11 @@ const s = {
     display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4,
   },
   tag: {
-    background: 'rgba(99,102,241,0.1)', color: '#818cf8',
+    background: 'rgba(85,107,47,0.1)', color: '#6B8E23',
     padding: '2px 8px', borderRadius: 6, fontSize: '.7rem', fontWeight: 600,
   },
   weatherCard: {
-    display: 'flex', flexDirection: 'column', gap: 4, padding: 12, background: 'rgba(14,165,233,0.05)', borderRadius: 10, border: '1px solid rgba(14,165,233,0.1)',
+    display: 'flex', flexDirection: 'column', gap: 4, padding: 12, background: 'rgba(85,107,47,0.05)', borderRadius: 10, border: '1px solid rgba(85,107,47,0.1)',
   }
 }
 
@@ -99,7 +99,7 @@ export default function PayloadVisualizer({ payload }) {
     return (
       <div style={s.container}>
          <div style={s.section}>
-            <div style={s.label}>✈️ Flight Options <span style={s.badge}>{data.flights?.length || 0}</span></div>
+            <div style={s.label}>🛩️ Flight Options <span style={s.badge}>{data.flights?.length || 0}</span></div>
             <div style={s.grid}>
                 {data.flights?.map((f, i) => (
                     <div key={i} style={s.card}>
@@ -119,7 +119,7 @@ export default function PayloadVisualizer({ payload }) {
          </div>
          {data.trains?.length > 0 && (
            <div style={s.section}>
-              <div style={s.label}>🚆 Train Options <span style={s.badge}>{data.trains.length}</span></div>
+              <div style={s.label}>🚂 Train Options <span style={s.badge}>{data.trains.length}</span></div>
               <div style={s.grid}>
                   {data.trains.map((t, i) => (
                       <div key={i} style={s.card}>
@@ -144,7 +144,7 @@ export default function PayloadVisualizer({ payload }) {
     return (
       <div style={s.container}>
          <div style={s.section}>
-            <div style={s.label}>🏨 Hotel Options <span style={s.badge}>{data.hotels?.length || 0}</span></div>
+            <div style={s.label}>🛖 Hotel Options <span style={s.badge}>{data.hotels?.length || 0}</span></div>
             <div style={s.grid}>
                 {data.hotels?.map((h, i) => (
                     <div key={i} style={s.card}>
@@ -186,7 +186,7 @@ export default function PayloadVisualizer({ payload }) {
                 </div>
              </div>
              <div style={s.section}>
-                <div style={s.label}>📰 Local News</div>
+                <div style={s.label}>��️ Local News</div>
                 <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
                     {data.news?.map((n, i) => (
                         <div key={i} style={{...s.card, padding: 12}}>
@@ -205,7 +205,7 @@ export default function PayloadVisualizer({ payload }) {
     return (
       <div style={s.container}>
          <div style={s.section}>
-            <div style={s.label}>🍽️ Restaurant Recommendations <span style={s.badge}>{data.restaurants?.length || 0}</span></div>
+            <div style={s.label}>🍷 Restaurant Recommendations <span style={s.badge}>{data.restaurants?.length || 0}</span></div>
             <div style={s.grid}>
                 {data.restaurants?.map((r, i) => (
                     <div key={i} style={s.card}>
@@ -227,7 +227,7 @@ export default function PayloadVisualizer({ payload }) {
             </div>
          </div>
          <div style={s.section}>
-            <div style={s.label}>🏛️ Sightseeing & Attractions <span style={s.badge}>{sites.length}</span></div>
+            <div style={s.label}>🏺 Sightseeing & Attractions <span style={s.badge}>{sites.length}</span></div>
             <div style={s.grid}>
                 {sites.map((site, i) => (
                     <div key={i} style={s.card}>
@@ -251,12 +251,12 @@ export default function PayloadVisualizer({ payload }) {
     return (
       <div style={s.container}>
         <div style={s.section}>
-          <div style={s.label}>🗺️ Final Itinerary Draft</div>
+          <div style={s.label}>📜 Final Itinerary Draft</div>
           <div style={{
             ...s.card,
             padding: 20,
-            background: 'rgba(99,102,241,0.03)',
-            border: '1px solid rgba(99,102,241,0.1)',
+            background: 'rgba(85,107,47,0.03)',
+            border: '1px solid rgba(85,107,47,0.1)',
             fontFamily: "'Courier New', monospace",
             fontSize: '.85rem',
             lineHeight: 1.6,

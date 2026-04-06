@@ -21,4 +21,5 @@ class TripState(TypedDict):
     final_itinerary:     str
     status_log:          Annotated[List[str], operator.add]
     timeline:           Annotated[List[dict], operator.add]   # Agent-to-agent communication entries
+    telemetry:          Annotated[List[dict], operator.add]   # Structured telemetry entries
     messages:           Annotated[List[dict], operator.add]   # Chat history for UI

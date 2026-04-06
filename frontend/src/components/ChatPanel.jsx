@@ -17,7 +17,7 @@ const s = {
     fontFamily: "'Inter', sans-serif", fontSize: '.9rem',
     lineHeight: 1.5,
     ...(isUser ? {
-      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+      background: 'linear-gradient(135deg, #556B2F, #3e4f20)',
       color: '#fff',
       alignSelf: 'flex-end',
       borderBottomRightRadius: 4,
@@ -39,7 +39,7 @@ const s = {
   },
   input: (disabled) => ({
     flex: 1,
-    background: disabled ? 'rgba(255,255,255,0.02)' : '#0a0f1a',
+    background: disabled ? 'rgba(255,255,255,0.02)' : '#0a0a00',
     border: disabled ? '1px solid rgba(255,255,255,0.03)' : '1px solid rgba(255,255,255,0.08)',
     borderRadius: 12,
     color: disabled ? '#64748b' : '#e2e8f0',
@@ -48,17 +48,17 @@ const s = {
     outline: 'none', transition: 'all .2s',
     cursor: disabled ? 'not-allowed' : 'text',
     '&:focus': {
-      borderColor: disabled ? 'rgba(255,255,255,0.03)' : '#6366f1',
-      boxShadow: disabled ? 'none' : '0 0 0 3px rgba(99,102,241,0.1)',
+      borderColor: disabled ? 'rgba(255,255,255,0.03)' : '#556B2F',
+      boxShadow: disabled ? 'none' : '0 0 0 3px rgba(85,107,47,0.1)',
     },
   }),
   sendButton: (disabled) => ({
     padding: '12px 20px', border: 'none', borderRadius: 12,
-    background: disabled ? 'rgba(99,102,241,0.2)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff', fontFamily: "'Outfit', sans-serif", fontSize: '.9rem', fontWeight: 700,
+    background: disabled ? 'rgba(85,107,47,0.2)' : 'linear-gradient(135deg, #556B2F, #3e4f20)',
+    color: '#fff', fontFamily: "'Playfair Display', sans-serif", fontSize: '.9rem', fontWeight: 700,
     cursor: disabled ? 'not-allowed' : 'pointer',
     transition: 'all .3s', opacity: disabled ? 0.5 : 1,
-    boxShadow: disabled ? 'none' : '0 4px 20px rgba(99,102,241,0.3)',
+    boxShadow: disabled ? 'none' : '0 4px 20px rgba(85,107,47,0.3)',
   }),
   statusIndicator: {
     padding: '8px 16px', borderRadius: 20, fontSize: '.8rem', fontWeight: 600,
@@ -125,8 +125,8 @@ export default function ChatPanel({ status, isDone }) {
       <div style={s.messagesContainer}>
         {messages.length === 0 ? (
           <div style={s.placeholderMessage}>
-            <div style={{ fontSize: '2rem', marginBottom: 16 }}>💬</div>
-            <div>Chat with your AI Travel Concierge</div>
+            <div style={{ fontSize: '2rem', marginBottom: 16 }}>🖋️</div>
+            <div>Chat with your TravelEase</div>
             <div style={{ fontSize: '.8rem', marginTop: 8, color: '#475569' }}>
               {isInputDisabled 
                 ? 'Chat is disabled while agents are working. Please wait...' 

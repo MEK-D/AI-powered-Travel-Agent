@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import json, os, requests, uuid
 from datetime import datetime
 import langchain
+from telemetry import TelemetryManager, TelemetryCallbackHandler
 
 class SelectedRestaurant(BaseModel):
     restaurant_name: str
@@ -26,16 +27,18 @@ class RestaurantSelection(BaseModel):
 
 
 def restaurant_agent(state: dict) -> dict:
-    logs = ["🍴 Restaurant Agent: Finding dining options near your hotel..."]
-    print(logs[0])
+    tm = TelemetryManager("restaurant_agent")
+    tm.info("🍴 Restaurant Agent: Finding dining options near your hotel...")
+    callback = TelemetryCallbackHandler(tm)
     
 
     # 1. Extract context from State
     # We assume 'hotels' was populated by the hotel_agent
+    trip  = state.get("trip_details", {})
     hotel_data = state.get("scraped_data", {}).get("hotels", [])
-    print(f"DEBUG: Restaurant Agent received {len(hotel_data)} hotels from state.")
+    tm.debug(f"DEBUG: Restaurant Agent received {len(hotel_data)} hotels from state.")
     if not hotel_data:
-        logs.append("⚠️ No hotel found in state. Searching general city area instead.")
+        tm.warning("⚠️ No hotel found in state. Searching general city area instead.")
         search_location = state.get("trip_details", {}).get("destination", "Unknown")
         lat_long = None
     else:
@@ -44,6 +47,7 @@ def restaurant_agent(state: dict) -> dict:
         search_location = f"restaurants near {target_hotel.get('name')}"
         gps = target_hotel.get("gps_coordinates", {})
         lat_long = f"@{gps.get('latitude')},{gps.get('longitude')},15z" # 15z is zoom level
+        tm.info(f"🍴 Context: Anchoring search to {target_hotel.get('name')} at coordinates {gps.get('latitude')}, {gps.get('longitude')}")
 
     serpapi_key = os.getenv("SERPAPI_KEY")
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
@@ -74,9 +78,10 @@ def restaurant_agent(state: dict) -> dict:
         resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
         resp.raise_for_status()
         raw_results = resp.json().get("local_results", [])
+        tm.info(f"📡 SerpApi Data Received: Found {len(raw_results)} local dining options nearby.", raw_count=len(raw_results))
     except Exception as e:
-        logs.append(f"❌ Restaurant API error: {e}")
-        return {"scraped_data": {"restaurants": [{"error": str(e)}]}, "status_log": logs}
+        tm.error(f"❌ Restaurant API error: {e}")
+        return {"scraped_data": {"restaurants": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
     # 3. Condense Data for LLM
     condensed = []
@@ -93,16 +98,18 @@ def restaurant_agent(state: dict) -> dict:
 
     # 4. LLM Structured Evaluation
     try:
+        tm.info(f"🧠 Analysis: Evaluating {len(condensed)} curated options to pick a diverse top 3 selection.", condensed_count=len(condensed))
         eval_llm = llm.with_structured_output(RestaurantSelection)
         eval_prompt = ChatPromptTemplate.from_messages([
-            ("system", f"You are a local food guide. Based on the hotel location and restaurant data, pick the 3 best diverse options (e.g., one casual, one fine dining, one local favorite).{feedback_clause}"),
-            ("human", "Available Restaurants:\n{restaurants}\n\nHotel Context: {context}")
+            ("system", f"You are a local food guide. Based on the hotel location and restaurant data and budget(considering budget(budget provided to uh will of entire trip not just for restaurant), pick the 3 best diverse options (e.g., one casual, one fine dining, one local favorite).{feedback_clause}"),
+            ("human", "Available Restaurants:\n{restaurants}\n\nHotel Context: {context}\n\n Trip Details: {trip_details}")
         ])
         
         best: RestaurantSelection = (eval_prompt | eval_llm).invoke({
             "restaurants": json.dumps(condensed, indent=2),
-            "context": f"Staying at {search_location}"
-        })
+            "context": f"Staying at {search_location}",
+            "trip_details": trip,
+        }, config={"callbacks": [callback]})
 
         results = []
         for res in best.best_restaurants:
@@ -117,13 +124,14 @@ def restaurant_agent(state: dict) -> dict:
                 "distance": res.distance_from_hotel,
                 "why_pick": res.reasoning
             })
-            logs.append(f"✅ Restaurant: {res.restaurant_name} ({res.cuisine_type})")
+            tm.info(f"✅ Restaurant: {res.restaurant_name} ({res.cuisine_type})")
 
     except Exception as e:
-        logs.append(f"⚠️ LLM eval failed ({e}), returning raw results")
+        tm.warning(f"⚠️ LLM eval failed ({e}), returning raw results")
         results = condensed[:3] # Fallback
-    print("restaurants:", results)
+    tm.debug("restaurants:", results=results)
+    tm.info(f"✅ Selection Complete: Finalized {len(results)} hand-picked dining recommendations.", final_count=len(results))
     tl = [{"id": str(uuid.uuid4()), "from": "restaurant_agent", "to": "phase3_collector", "message": f"Found {len(results)} restaurant options."}]
-    return {"scraped_data": {"restaurants": results}, "status_log": logs, "timeline": tl}
+    return {"scraped_data": {"restaurants": results}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries(), "timeline": tl}
 
 

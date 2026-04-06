@@ -14,10 +14,12 @@ from datetime import datetime
 import langchain
 
 from state import TripState
+from telemetry import TelemetryManager
 
 def itinerary_agent(state: TripState) -> dict:
-    msg = "🗺 Itinerary Agent: Synthesizing final day-by-day plan..."
-    print(msg)
+    tm = TelemetryManager("itinerary_agent")
+    tm.info("🗺 Itinerary Agent: Synthesizing final day-by-day plan...")
+    tm.debug("Input data for itinerary", data=state.get("scraped_data", {}))
 
     data     = state.get("scraped_data", {})
     trip     = state.get("trip_details", {})
@@ -138,6 +140,7 @@ Day 3 — Departure
 📌 Local Tips:
 {chr(10).join(f'  • {n}' for n in news_items)}
 """
-    print("Itinerary ready!")
+    tm.info("Final itinerary generated!")
+    tm.debug("Final itinerary text", itinerary=itinerary)
     tl = [{"id": str(uuid.uuid4()), "from": "itinerary_agent", "to": "itinerary_hitl", "message": "Final itinerary drafted."}]
-    return {"final_itinerary": itinerary, "status_log": [msg, "Final itinerary generated!"], "timeline": tl}
+    return {"final_itinerary": itinerary, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries(), "timeline": tl}

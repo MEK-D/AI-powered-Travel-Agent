@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 const s = {
   sidebar: {
     width: 320, flexShrink: 0,
-    background: '#0d1117',
+    background: '#0a0a00',
     borderRight: '1px solid rgba(255,255,255,0.07)',
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
     boxShadow: '10px 0 30px rgba(0,0,0,0.3)',
@@ -15,18 +15,18 @@ const s = {
   header: {
     padding: '24px 22px',
     borderBottom: '1px solid rgba(255,255,255,0.07)',
-    background: 'linear-gradient(180deg, rgba(99,102,241,0.05) 0%, transparent 100%)',
+    background: 'linear-gradient(180deg, rgba(85,107,47,0.05) 0%, transparent 100%)',
   },
   label: { 
     display: 'block', fontSize: '.65rem', fontWeight: 900, color: '#475569', 
     textTransform: 'uppercase', letterSpacing: '.15em', marginBottom: 12 
   },
   newChatBtn: {
-    width: '100%', padding: '12px', border: '1px solid rgba(99,102,241,0.2)',
-    borderRadius: 14, background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', fontSize: '.85rem',
+    width: '100%', padding: '12px', border: '1px solid rgba(85,107,47,0.2)',
+    borderRadius: 14, background: 'rgba(85,107,47,0.1)', color: '#a5b4fc', fontSize: '.85rem',
     fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
     transition: 'all .3s ease',
-    '&:hover': { background: 'rgba(99,102,241,0.2)', transform: 'translateY(-1px)' }
+    '&:hover': { background: 'rgba(85,107,47,0.2)', transform: 'translateY(-1px)' }
   },
   progressPanel: { padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.07)' },
   agentsPanel: { 
@@ -39,7 +39,7 @@ const s = {
   },
   phaseGroup: { marginBottom: 16 },
   phaseLabel: { 
-    fontSize: '.6rem', color: '#334155', marginBottom: 10, fontWeight: 900, 
+    fontSize: '.6rem', color: '#111111', marginBottom: 10, fontWeight: 900, 
     display: 'flex', alignItems: 'center', gap: 8 
   },
   logPanel: { 
@@ -52,8 +52,8 @@ const s = {
   },
   historyItem: (active) => ({
     padding: '10px 14px', borderRadius: 12, cursor: 'pointer', marginBottom: 8,
-    background: active ? 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1))' : 'transparent',
-    border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+    background: active ? 'linear-gradient(135deg, rgba(85,107,47,0.15), rgba(139,0,0,0.1))' : 'transparent',
+    border: active ? '1px solid rgba(85,107,47,0.3)' : '1px solid transparent',
     color: active ? '#fff' : '#94a3b8', fontSize: '.78rem', transition: 'all .25s cubic-bezier(0.4, 0, 0.2, 1)',
     display: 'flex', alignItems: 'center', gap: 12,
     '&:hover': { background: 'rgba(255,255,255,0.03)', transform: 'translateX(4px)' }
@@ -108,7 +108,7 @@ export default function Sidebar({
               >
                 <div style={{
                   width: 8, height: 8, borderRadius: '50%', 
-                  background: t.id === activeThreadId ? '#6366f1' : 'rgba(255,255,255,0.1)'
+                  background: t.id === activeThreadId ? '#556B2F' : 'rgba(255,255,255,0.1)'
                 }} />
                 <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight: t.id === activeThreadId ? 600 : 400}}>
                    Plan {t.id.substring(0, 8)}

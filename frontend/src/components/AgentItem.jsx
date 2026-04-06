@@ -12,7 +12,7 @@ const s = {
   icon: { fontSize: '1.4rem', zIndex: 2 },
   info: { flex: 1, zIndex: 2 },
   name: {
-    fontFamily: "'Outfit', sans-serif", fontSize: '.9rem', fontWeight: 700,
+    fontFamily: "'Playfair Display', sans-serif", fontSize: '.9rem', fontWeight: 700,
     color: '#e2e8f0', marginBottom: 2,
   },
   sub: { fontSize: '.75rem', color: '#64748b', lineHeight: 1.3 },
@@ -38,7 +38,7 @@ const s = {
   },
   glow: {
     position: 'absolute', inset: 0,
-    background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.05), transparent)',
+    background: 'linear-gradient(90deg, transparent, rgba(85,107,47,0.05), transparent)',
     zIndex: 1,
   }
 }

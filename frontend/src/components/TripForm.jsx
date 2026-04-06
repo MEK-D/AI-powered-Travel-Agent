@@ -4,7 +4,7 @@ import { INDIAN_STATES_CITIES } from '../constants/indianCities';
 const s = {
   form: {
     padding: '24px',
-    background: '#0d1117',
+    background: '#0a0a00',
     borderRadius: 16,
     border: '1px solid rgba(255,255,255,0.07)',
     maxWidth: 600,
@@ -16,7 +16,7 @@ const s = {
     color: '#e2e8f0',
     marginBottom: 20,
     textAlign: 'center',
-    fontFamily: "'Outfit', sans-serif",
+    fontFamily: "'Playfair Display', sans-serif",
   },
   group: { marginBottom: 20 },
   label: {
@@ -32,7 +32,7 @@ const s = {
   input: {
     flex: 1,
     padding: '12px 14px',
-    background: '#0a0f1a',
+    background: '#0a0a00',
     border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 10,
     color: '#e2e8f0',
@@ -42,7 +42,7 @@ const s = {
   select: {
     flex: 1,
     padding: '12px 14px',
-    background: '#0a0f1a',
+    background: '#0a0a00',
     border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 10,
     color: '#e2e8f0',
@@ -55,13 +55,13 @@ const s = {
     padding: '14px 0',
     border: 'none',
     borderRadius: 12,
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    background: 'linear-gradient(135deg, #556B2F, #3e4f20)',
     color: '#fff',
     fontSize: '1rem',
     fontWeight: 700,
     cursor: 'pointer',
     marginTop: 10,
-    boxShadow: '0 4px 15px rgba(99,102,241,0.3)',
+    boxShadow: '0 4px 15px rgba(85,107,47,0.3)',
   }
 };
 
@@ -107,7 +107,7 @@ export default function TripForm({ onStart }) {
 
   return (
     <form style={s.form} onSubmit={handleSubmit}>
-      <h2 style={s.title}>🌍 Plan Your Indian Adventure</h2>
+      <h2 style={s.title}>🧭 Plan Your Indian Adventure</h2>
       
       <div style={s.group}>
         <label style={s.label}>From</label>
