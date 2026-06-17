@@ -106,13 +106,14 @@ def hotel_agent(state: dict) -> dict:
         llm      = ChatCohere(model="command-r-08-2024", temperature=0)
         eval_llm = llm.with_structured_output(HotelSelection)
         eval_p   = ChatPromptTemplate.from_messages([
-            ("system", f"Pick best 1 hotels according to user preferences, budget(budget provided to uh will of entire trip not just for hotel), interests. You MUST preserve the exact 'gps_coordinates' and 'nearby_places' provided in the source data.{feedback_clause}"),
-            ("human",  "Hotels Data:\n{hotels}\n\nVibe: {vibe}\n\n Trip Details: {trip_details}")
+            ("system", f"Pick best 1 hotels according to user preferences, budget(budget provided to uh will of entire trip not just for hotel), interests. You MUST preserve the exact 'gps_coordinates' and 'nearby_places' provided in the source data. user feedback(as it provides you the real user interest so based on that filter out the hotel) should be used(if available) to adjust the ranking of hotels."),
+            ("human",  "Hotels Data:\n{hotels}\n\nVibe: {vibe}\n\n Trip Details: {trip_details}\n\n User Feedback: {feedback_clause}")
         ])
         best: HotelSelection = (eval_p | eval_llm).invoke({
             "hotels":    json.dumps(condensed, indent=2),
             "vibe":      vibe,
             "trip_details": trip,
+            "feedback_clause": feedback_clause if feedback_clause else "No specific feedback provided."
         }, config={"callbacks": [TelemetryCallbackHandler(tm)]})
         
         results = []
