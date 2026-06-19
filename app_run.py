@@ -7,6 +7,7 @@ At each phase the user can:
   "yes" / "y"          → approve and continue
   "no"  / "cancel"     → hard stop
   <any other text>     → feedback: re-run phase with LLM-improved prompts
+  hello 
 """
 
 from __future__ import annotations
