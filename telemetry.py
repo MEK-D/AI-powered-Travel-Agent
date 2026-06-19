@@ -40,7 +40,14 @@ class TelemetryManager:
         )
         self.entries.append(entry)
         # Still print to console for visibility in logs
-        print(f"[{entry.timestamp}] {level.value} | {self.agent_name}: {message}")
+        try:
+            print(f"[{entry.timestamp}] {level.value} | {self.agent_name}: {message}")
+        except UnicodeEncodeError:
+            try:
+                safe_message = message.encode('ascii', 'ignore').decode('ascii')
+                print(f"[{entry.timestamp}] {level.value} | {self.agent_name} (ascii-safe): {safe_message}")
+            except Exception:
+                pass
 
     def info(self, message: str, **metadata):
         self._log(LogLevel.INFO, message, **metadata)

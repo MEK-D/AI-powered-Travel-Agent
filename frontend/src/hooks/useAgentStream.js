@@ -19,7 +19,19 @@ function detectAgent(msg) {
   return null
 }
 
-export function useAgentStream({ onFlights, onHotels } = {}) {
+const readResponse = async (res) => {
+  const contentType = res.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return await res.json();
+  }
+  const text = await res.text();
+  if (text.includes('<!DOCTYPE') || text.includes('<!doctype') || text.includes('<html')) {
+    throw new Error('Unexpected HTML response. Is the Express auth gateway running on port 5000?');
+  }
+  throw new Error(text || `Request failed with status ${res.status}`);
+};
+
+export function useAgentStream({ accessToken, onAccessTokenRefresh, onFlights, onHotels } = {}) {
   const [threadId, setThreadId]         = useState(null)
   const [status,   setStatus]           = useState('idle')   // idle | running | paused | done | error
   const [lastPrompt, setLastPrompt]     = useState('')
@@ -38,6 +50,51 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   const [messages, setMessages]         = useState([])
   const [threadList, setThreadList]     = useState([])
   const esRef = useRef(null)
+
+  const handleLogout = useCallback(() => {
+    onAccessTokenRefresh?.(null, null, null);
+  }, [onAccessTokenRefresh]);
+
+  // Authenticated Fetch Wrapper with Auto-Refresh rotation
+  const authFetch = useCallback(async (url, options = {}) => {
+    if (!options.headers) {
+      options.headers = {};
+    }
+    if (accessToken) {
+      options.headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    let res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+      // Access token expired, attempt auto-refresh
+      const refreshVal = localStorage.getItem('travel_auth_refresh');
+      if (refreshVal) {
+        try {
+          const refreshRes = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: refreshVal })
+          });
+          if (refreshRes.ok) {
+            const data = await readResponse(refreshRes);
+            onAccessTokenRefresh?.(data.accessToken, data.refreshToken, data.user);
+            
+            // Retry fetch with new token
+            options.headers['Authorization'] = `Bearer ${data.accessToken}`;
+            res = await fetch(url, options);
+          } else {
+            handleLogout();
+          }
+        } catch (refreshErr) {
+          console.error('Auto refresh failed:', refreshErr);
+          handleLogout();
+        }
+      } else {
+        handleLogout();
+      }
+    }
+    return res;
+  }, [accessToken, onAccessTokenRefresh, handleLogout]);
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [...prev.slice(-80), msg])
@@ -75,7 +132,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
   const openStream = useCallback((tid) => {
     if (esRef.current) esRef.current.close()
     setError(null)
-    const es = new EventSource(`/api/stream/${tid}`)
+    const es = new EventSource(`/api/stream/${tid}?token=${encodeURIComponent(accessToken || '')}`)
     esRef.current = es
 
     es.addEventListener('connected',      () => addLog('🔗 Connected to agent stream'))
@@ -195,7 +252,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       setStatus('error')
       addLog('⚠️ SSE connection issue...')
     }
-  }, [addLog, addTelemetry, mergeScraped])
+  }, [accessToken, addLog, addTelemetry, mergeScraped])
 
   const startSession = useCallback(async (prompt, tripDetails) => {
     const actualPrompt = prompt || lastPrompt
@@ -208,7 +265,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     addLog('🚀 Starting session...')
 
     try {
-      const res  = await fetch('/api/start', {
+      const res  = await authFetch('/api/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -221,7 +278,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
         const t = await res.text()
         throw new Error(t || `HTTP ${res.status}`)
       }
-      const data = await res.json()
+      const data = await readResponse(res)
       setThreadId(data.thread_id)
       addLog(`📡 Thread: ${data.thread_id.substring(0, 8)}...`)
       setMessages(prev => [...prev, {role: 'user', content: actualPrompt}])
@@ -232,7 +289,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       setStatus('error')
       addLog('❌ Failed to start session')
     }
-  }, [addLog, openStream])
+  }, [addLog, openStream, lastPrompt, threadId, authFetch])
 
   const resume = useCallback(async (decision) => {
     if (!threadId) return
@@ -241,7 +298,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     setHitl(null)
     addLog(`🟣 Sending input: ${String(decision).slice(0, 80)}`)
     try {
-      const res = await fetch(`/api/resume/${threadId}`, {
+      const res = await authFetch(`/api/resume/${threadId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision }),
@@ -256,7 +313,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       setStatus('error')
       addLog('❌ Failed to resume graph')
     }
-  }, [threadId, addLog, openStream])
+  }, [threadId, addLog, openStream, authFetch])
   
   const retry = useCallback(async () => {
     if (!error) return
@@ -286,13 +343,13 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
 
   const fetchThreads = useCallback(async () => {
     try {
-      const res = await fetch('/api/threads')
-      const data = await res.json()
+      const res = await authFetch('/api/threads')
+      const data = await readResponse(res)
       if (data.threads) setThreadList(data.threads)
     } catch (e) {
       console.error("Failed to fetch threads", e)
     }
-  }, [])
+  }, [authFetch])
 
   const loadThread = useCallback(async (tid) => {
     reset()
@@ -300,8 +357,8 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
     setStatus('running')
     addLog(`📂 Loading thread ${tid.substring(0,8)}...`)
     try {
-      const res = await fetch(`/api/threads/${tid}`)
-      const data = await res.json()
+      const res = await authFetch(`/api/threads/${tid}`)
+      const data = await readResponse(res)
       if (data.error) throw new Error(data.error)
 
       // Restore state
@@ -332,7 +389,7 @@ export function useAgentStream({ onFlights, onHotels } = {}) {
       setError(String(e))
       setStatus('error')
     }
-  }, [reset, addLog])
+  }, [reset, addLog, authFetch])
 
   return { 
     threadId, status, error, hitl, logs, telemetry, agentStates, scraped, timeline, 

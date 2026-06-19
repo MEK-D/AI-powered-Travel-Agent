@@ -31,7 +31,7 @@ const s = {
     transition: 'all .3s ease'
   }),
   agentStatus: {
-    marginTop: 8, padding: '14px 16px', background: 'rgba(255,255,255,0.02)',
+    marginTop: 8, padding: '14px 16px',
     borderRadius: 14, border: '1px solid rgba(255,255,255,0.05)',
     background: 'linear-gradient(145deg, rgba(255,255,255,0.03) 0%, transparent 100%)',
   },

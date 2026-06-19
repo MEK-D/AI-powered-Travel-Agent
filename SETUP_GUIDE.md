@@ -46,25 +46,32 @@ SERPAPI_API_KEY=your_serpapi_key_here
 
 ## 🚀 Step 4: Start Services
 
-### Backend Server:
+### Python Backend Server (Port 5001):
 ```bash
-# Terminal 1: Start backend
-cd "c:\Users\Devansh\Desktop\travel2"
+# Terminal 1: Start python backend
+cd "c:\Users\HP\Desktop\AI-powered-Travel-Agent"
 myenv\Scripts\activate
 python server.py
 ```
 
-### Frontend Dev Server:
+### Express Auth & Gateway Server (Port 5000):
 ```bash
-# Terminal 2: Start frontend
-cd "c:\Users\Devansh\Desktop\travel2\frontend"
+# Terminal 2: Start auth gateway
+cd "c:\Users\HP\Desktop\AI-powered-Travel-Agent\express-auth"
+npm run start
+```
+
+### Frontend Dev Server (Port 3000):
+```bash
+# Terminal 3: Start React frontend
+cd "c:\Users\HP\Desktop\AI-powered-Travel-Agent\frontend"
 npm run dev
 ```
 
 ## 🌐 Access Points
 
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:5000
+- **Frontend Dashboard**: http://localhost:3000
+- **Auth & Gateway API**: http://localhost:5000
 - **Database**: localhost:5432 (PostgreSQL)
 
 ## 🔍 Troubleshooting

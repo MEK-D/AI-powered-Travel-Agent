@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import './index.css'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import MainPanel from './components/MainPanel'
+import Auth from './components/Auth'
 import { useAgentStream } from './hooks/useAgentStream'
-import { useEffect } from 'react'
 
 const AGENT_META = [
   { id: 'orchestrator',     name: 'Orchestrator',      icon: '♟️', sub: 'Plans & routes tasks',    phase: 0 },
@@ -12,45 +12,116 @@ const AGENT_META = [
   { id: 'train_agent',      name: 'Train Agent',        icon: '🚂', sub: 'Transport alternatives',  phase: 1 },
   { id: 'hotel_agent',      name: 'Hotel Agent',        icon: '🛖', sub: 'Google Hotels',   phase: 2 },
   { id: 'weather_agent',    name: 'Weather Agent',      icon: '🌦', sub: 'Live forecast',           phase: 2 },
-  { id: 'news_agent',       name: 'News Agent',         icon: '��️', sub: 'Events & local tips',     phase: 2 },
+  { id: 'news_agent',       name: 'News Agent',         icon: '📰', sub: 'Events & local tips',     phase: 2 },
   { id: 'restaurant_agent', name: 'Restaurant Agent',   icon: '🍽', sub: 'Dining finder',           phase: 3 },
   { id: 'site_seeing_agent', name: 'Sightseeing Agent',  icon: '🏛', sub: 'Local attractions',      phase: 3 },
   { id: 'itinerary_agent',  name: 'Itinerary Agent',    icon: '🗺', sub: 'Day-by-day planner',      phase: 4 },
 ]
 
 export default function App() {
+  // Authentication States
+  const [accessToken, setAccessToken] = useState(null)
+  const [refreshToken, setRefreshToken] = useState(null)
+  const [user, setUser] = useState(null)
+  const [authChecking, setAuthChecking] = useState(true)
+
   const [activeTab, setActiveTab]         = useState(1)
   const [selectedFlight, setSelectedFlight] = useState(null)
   const [selectedHotel, setSelectedHotel]   = useState(null)
   const [currentTrip, setCurrentTrip]       = useState(null)
   const [bookingStatus, setBookingStatus]   = useState({ transport: 'idle', hotel: 'idle' })
 
+  const handleTokenRefresh = useCallback((access, refresh, userData) => {
+    setAccessToken(access)
+    setRefreshToken(refresh)
+    setUser(userData)
+    if (refresh) {
+      localStorage.setItem('travel_auth_refresh', refresh)
+    } else {
+      localStorage.removeItem('travel_auth_refresh')
+    }
+  }, [])
+
   const {
     threadId, status, error, hitl, logs, telemetry, agentStates, scraped, timeline,
     phase1Done, phase2Done, phase3Done, isDone, finalItinerary,
     messages, threadList,
     startSession, approve, resume, reset, retry, fetchThreads, loadThread,
-  } = useAgentStream({ onFlights: f => !selectedFlight && setSelectedFlight(f[0] || null),
-                       onHotels:  h => !selectedHotel  && setSelectedHotel (h[0] || null) })
+  } = useAgentStream({
+    accessToken,
+    onAccessTokenRefresh: handleTokenRefresh,
+    onFlights: f => !selectedFlight && setSelectedFlight(f[0] || null),
+    onHotels:  h => !selectedHotel  && setSelectedHotel (h[0] || null)
+  })
 
+  // Restore session on mount
   useEffect(() => {
-    fetchThreads()
-    const savedThreadId = localStorage.getItem('travel_agent_thread_id')
-    if (savedThreadId) {
-      loadThread(savedThreadId)
+    const checkSession = async () => {
+      const refreshVal = localStorage.getItem('travel_auth_refresh')
+      if (refreshVal) {
+        try {
+          const res = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: refreshVal })
+          })
+          if (res.ok) {
+            const contentType = res.headers.get('content-type')
+            if (contentType && contentType.includes('application/json')) {
+              const data = await res.json()
+              handleTokenRefresh(data.accessToken, data.refreshToken, data.user)
+            } else {
+              localStorage.removeItem('travel_auth_refresh')
+            }
+          } else {
+            localStorage.removeItem('travel_auth_refresh')
+          }
+        } catch (e) {
+          console.error("Session restoration error", e)
+        }
+      }
+      setAuthChecking(false)
     }
-  }, [fetchThreads, loadThread])
+    checkSession()
+  }, [handleTokenRefresh])
+
+  // Fetch threads once authenticated
+  useEffect(() => {
+    if (accessToken) {
+      fetchThreads()
+      const savedThreadId = localStorage.getItem('travel_agent_thread_id')
+      if (savedThreadId) {
+        loadThread(savedThreadId)
+      }
+    }
+  }, [accessToken, fetchThreads, loadThread])
 
   useEffect(() => {
-    if (threadId) {
+    if (accessToken && threadId) {
       localStorage.setItem('travel_agent_thread_id', threadId)
     } else {
       localStorage.removeItem('travel_agent_thread_id')
     }
-  }, [threadId])
+  }, [accessToken, threadId])
+
+  const handleLogout = useCallback(async () => {
+    const refreshVal = refreshToken || localStorage.getItem('travel_auth_refresh')
+    if (refreshVal) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refreshVal })
+        })
+      } catch (e) {
+        console.error("Logout backend call failed", e)
+      }
+    }
+    handleTokenRefresh(null, null, null)
+    reset()
+  }, [refreshToken, handleTokenRefresh, reset])
 
   const handleStart = useCallback(async (promptVal, tripDetails) => {
-    // If we're already running or no prompt, return
     if (!promptVal.trim()) return
     reset()
     setSelectedFlight(null)
@@ -101,12 +172,35 @@ export default function App() {
 
   const handleSelectThread = useCallback((tid) => {
     loadThread(tid)
-    setActiveTab(1) // Usually start with flights or general view
+    setActiveTab(1)
   }, [loadThread])
+
+  if (authChecking) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        background: '#07090f',
+        color: '#94a3b8',
+        fontFamily: "'Outfit', 'Inter', sans-serif",
+        backgroundImage: 'radial-gradient(circle at center, rgba(85, 107, 47, 0.15) 0%, transparent 70%)'
+      }}>
+        <img src="/travelease_logo.png" alt="TravelEase Logo" style={{ width: 80, height: 80, marginBottom: '24px', animation: 'logoPulse 4s infinite ease-in-out' }} />
+        <div style={{ letterSpacing: '1px', fontWeight: 600, color: '#e2e8f0', fontSize: '1.05rem' }}>Restoring TravelEase session...</div>
+      </div>
+    )
+  }
+
+  if (!accessToken) {
+    return <Auth onLoginSuccess={(userData, access, refresh) => handleTokenRefresh(access, refresh, userData)} />
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <Header status={status} />
+      <Header status={status} user={user} onLogout={handleLogout} />
       {error && (
         <div style={{
           padding: '10px 16px',

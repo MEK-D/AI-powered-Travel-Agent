@@ -357,5 +357,5 @@ def get_thread_history(thread_id: str):
 
 if __name__ == "__main__":
     os.makedirs("static", exist_ok=True)
-    print("Travel Concierge server starting at http://localhost:5000")
-    flask_app.run(debug=False, threaded=True, port=5000)
+    print("TravelEase server starting at http://localhost:5001")
+    flask_app.run(debug=False, threaded=True, port=5001)
