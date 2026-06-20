@@ -5,6 +5,9 @@ import Sidebar from './components/Sidebar'
 import MainPanel from './components/MainPanel'
 import Auth from './components/Auth'
 import { useAgentStream } from './hooks/useAgentStream'
+import ProfilePage from './components/ProfilePage'
+
+
 
 const AGENT_META = [
   { id: 'orchestrator',     name: 'Orchestrator',      icon: '♟️', sub: 'Plans & routes tasks',    phase: 0 },
@@ -24,6 +27,9 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState(null)
   const [user, setUser] = useState(null)
   const [authChecking, setAuthChecking] = useState(true)
+  const [activeView, setActiveView] = useState(
+    window.location.pathname === '/profile' ? 'profile' : 'workspace'
+  )
 
   const [activeTab, setActiveTab]         = useState(1)
   const [selectedFlight, setSelectedFlight] = useState(null)
@@ -104,6 +110,15 @@ export default function App() {
     }
   }, [accessToken, threadId])
 
+  // Handle browser back/forward buttons for routing
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveView(window.location.pathname === '/profile' ? 'profile' : 'workspace')
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
   const handleLogout = useCallback(async () => {
     const refreshVal = refreshToken || localStorage.getItem('travel_auth_refresh')
     if (refreshVal) {
@@ -161,6 +176,16 @@ export default function App() {
     await resume(text)
   }, [resume, hitl])
 
+  const navigateToProfile = useCallback(() => {
+    window.history.pushState({}, '', '/profile')
+    setActiveView('profile')
+  }, [])
+
+  const navigateToWorkspace = useCallback(() => {
+    window.history.pushState({}, '', '/')
+    setActiveView('workspace')
+  }, [])
+
   const handleResetAll = useCallback(() => {
     reset()
     setSelectedFlight(null)
@@ -174,6 +199,31 @@ export default function App() {
     loadThread(tid)
     setActiveTab(1)
   }, [loadThread])
+
+  const handleDeleteThread = useCallback(async (tid) => {
+    if (!window.confirm('Are you sure you want to permanently delete this itinerary? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/threads/${tid}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+      if (response.ok) {
+        fetchThreads();
+        if (threadId === tid) {
+          handleResetAll();
+        }
+      } else {
+        alert('Failed to delete itinerary');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error occurred deleting itinerary');
+    }
+  }, [accessToken, threadId, fetchThreads, handleResetAll]);
 
   if (authChecking) {
     return (
@@ -200,7 +250,14 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <Header status={status} user={user} onLogout={handleLogout} />
+      <Header 
+        status={status} 
+        user={user} 
+        onLogout={handleLogout} 
+        onProfileClick={navigateToProfile} 
+        onLogoClick={navigateToWorkspace} 
+        activeView={activeView}
+      />
       {error && (
         <div style={{
           padding: '10px 16px',
@@ -250,45 +307,56 @@ export default function App() {
 
         </div>
       )}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar
-          agents={AGENT_META}
-          agentStates={agentStates}
-          logs={logs}
-          disabled={status === 'running'}
-          status={status}
-          threadList={threadList}
-          activeThreadId={threadId}
+      {activeView === 'profile' ? (
+        <ProfilePage
+          user={user}
+          onBack={navigateToWorkspace}
+          accessToken={accessToken}
           onSelectThread={handleSelectThread}
-          onNewChat={handleResetAll}
+          onStartNew={handleResetAll}
         />
-        <MainPanel
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          scraped={scraped}
-          phase1Done={phase1Done}
-          phase2Done={phase2Done}
-          phase3Done={phase3Done}
-          isDone={isDone}
-          finalItinerary={finalItinerary}
-          onApprove={handleApprove}
-          onHitlSend={handleHitlSend}
-          onStartSession={handleStart}
-          hitl={hitl}
-          selectedFlight={selectedFlight}
-          setSelectedFlight={setSelectedFlight}
-          selectedHotel={selectedHotel}
-          setSelectedHotel={setSelectedHotel}
-          bookingStatus={bookingStatus}
-          setBookingStatus={setBookingStatus}
-          status={status}
-          agentStates={agentStates}
-          timeline={timeline}
-          currentTrip={currentTrip}
-          logs={logs}
-          telemetry={telemetry}
-        />
-      </div>
+      ) : (
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          <Sidebar
+            agents={AGENT_META}
+            agentStates={agentStates}
+            logs={logs}
+            disabled={status === 'running'}
+            status={status}
+            threadList={threadList}
+            activeThreadId={threadId}
+            onSelectThread={handleSelectThread}
+            onNewChat={handleResetAll}
+            onDeleteThread={handleDeleteThread}
+          />
+          <MainPanel
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            scraped={scraped}
+            phase1Done={phase1Done}
+            phase2Done={phase2Done}
+            phase3Done={phase3Done}
+            isDone={isDone}
+            finalItinerary={finalItinerary}
+            onApprove={handleApprove}
+            onHitlSend={handleHitlSend}
+            onStartSession={handleStart}
+            hitl={hitl}
+            selectedFlight={selectedFlight}
+            setSelectedFlight={setSelectedFlight}
+            selectedHotel={selectedHotel}
+            setSelectedHotel={setSelectedHotel}
+            bookingStatus={bookingStatus}
+            setBookingStatus={setBookingStatus}
+            status={status}
+            agentStates={agentStates}
+            timeline={timeline}
+            currentTrip={currentTrip}
+            logs={logs}
+            telemetry={telemetry}
+          />
+        </div>
+      )}
     </div>
   )
 }

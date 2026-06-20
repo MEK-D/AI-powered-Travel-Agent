@@ -58,27 +58,84 @@ const styles = {
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'all 0.2s',
+  },
+  profileButton: {
+    background: 'rgba(107,142,35,0.15)',
+    color: '#c4e275',
+    border: '1px solid rgba(107,142,35,0.3)',
+    padding: '6px 14px',
+    borderRadius: 8,
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    marginRight: 4,
   }
 }
 
 const labels = { idle: '● Ready', running: '⚙ Running…', paused: '⏸ Awaiting Approval', done: '✅ Complete', error: '❌ Error' }
 
-export default function Header({ status, user, onLogout }) {
+export default function Header({ status, user, onLogout, onProfileClick, onLogoClick, activeView }) {
   return (
     <header style={styles.header}>
       <div style={styles.glow} />
-      <img src="/travelease_logo.png" alt="TravelEase Logo" style={{ width: 44, height: 44, objectFit: 'contain', position: 'relative', zIndex: 1, filter: 'drop-shadow(0 2px 6px rgba(107,142,35,0.3))' }} />
+      <img 
+        src="/travelease_logo.png" 
+        alt="TravelEase Logo" 
+        style={{ 
+          width: 44, 
+          height: 44, 
+          objectFit: 'contain', 
+          position: 'relative', 
+          zIndex: 1, 
+          filter: 'drop-shadow(0 2px 6px rgba(107,142,35,0.3))',
+          cursor: 'pointer'
+        }} 
+        onClick={onLogoClick}
+      />
       <div style={styles.titleBlock}>
-        <h1 style={styles.title}>TravelEase</h1>
+        <h1 style={{ ...styles.title, cursor: 'pointer' }} onClick={onLogoClick}>TravelEase</h1>
         <p style={styles.sub}>3-Phase LangGraph Orchestration · Live Flights & Hotels</p>
       </div>
       
       {user && (
         <div style={styles.userBlock}>
-          <span style={styles.userEmail}>👤 {user.email}</span>
+          {activeView === 'profile' ? (
+            <button 
+              style={styles.profileButton}
+              onClick={onLogoClick}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(107,142,35,0.25)';
+                e.currentTarget.style.borderColor = 'rgba(107,142,35,0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(107,142,35,0.15)';
+                e.currentTarget.style.borderColor = 'rgba(107,142,35,0.3)';
+              }}
+            >
+              Planner
+            </button>
+          ) : (
+            <button 
+              style={styles.profileButton}
+              onClick={onProfileClick}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(107,142,35,0.25)';
+                e.currentTarget.style.borderColor = 'rgba(107,142,35,0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(107,142,35,0.15)';
+                e.currentTarget.style.borderColor = 'rgba(107,142,35,0.3)';
+              }}
+            >
+              My Profile
+            </button>
+          )}
+
           <button 
             style={styles.logoutButton}
             onClick={onLogout}
+
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'rgba(239,68,68,0.2)';
               e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)';

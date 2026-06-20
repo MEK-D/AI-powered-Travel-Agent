@@ -355,7 +355,61 @@ def get_thread_history(thread_id: str):
         return jsonify({"error": str(e)}), 500
 
 
+@flask_app.route("/api/itineraries/bulk", methods=["POST"])
+def get_bulk_itineraries():
+    """Retrieve itinerary state for multiple thread IDs."""
+    body = request.get_json(force=True)
+    thread_ids = body.get("thread_ids", [])
+    results = []
+    
+    for tid in thread_ids:
+        config = {"configurable": {"thread_id": tid}}
+        try:
+            snap = graph_app.get_state(config)
+            # Only include if they have a final itinerary generated
+            if snap.values and snap.values.get("final_itinerary"):
+                results.append({
+                    "thread_id": tid,
+                    "itinerary": snap.values["final_itinerary"],
+                    "trip_details": snap.values.get("trip_details", {}),
+                    "scraped_data": snap.values.get("scraped_data", {})
+                })
+        except Exception as e:
+            print(f"Error fetching bulk state for {tid}: {e}")
+            
+    return jsonify({"itineraries": results})
+
+
+@flask_app.route("/api/threads/<thread_id>", methods=["DELETE"])
+def delete_thread(thread_id: str):
+    """Delete checkpoints and state for a thread."""
+    try:
+        # 1. Clean up from memory checkpointer if active
+        if hasattr(checkpointer, "storage"):
+            for k in list(checkpointer.storage.keys()):
+                if k == thread_id or (isinstance(k, tuple) and k[0] == thread_id):
+                    checkpointer.storage.pop(k, None)
+                    
+        # 2. Clean up from postgres database if active
+        if USE_POSTGRES:
+            try:
+                with connection_pool.connection() as conn:
+                    with conn.cursor() as cur:
+                        for table in ["checkpoints", "checkpoint_writes", "checkpoint_blobs", "checkpoint_metadata", "writes"]:
+                            try:
+                                cur.execute(f"DELETE FROM {table} WHERE thread_id = %s", (thread_id,))
+                            except Exception:
+                                pass
+            except Exception as pg_err:
+                print(f"Error deleting from Postgres checkpointer tables: {pg_err}")
+                
+        return jsonify({"status": "success", "message": f"Thread {thread_id} checkpoints deleted"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     os.makedirs("static", exist_ok=True)
     print("TravelEase server starting at http://localhost:5001")
     flask_app.run(debug=False, threaded=True, port=5001)
+

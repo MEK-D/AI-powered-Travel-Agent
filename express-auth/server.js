@@ -447,6 +447,111 @@ app.get('/api/threads', authenticateToken, async (req, res) => {
   }
 });
 
+const CITY_TO_IATA = {
+  "mumbai": "BOM",
+  "srinagar": "SXR",
+  "goa": "GOI",
+  "new delhi": "DEL",
+  "delhi": "DEL",
+  "bangalore": "BLR",
+  "kolkata": "CCU",
+  "kolkate": "CCU",
+  "pune": "PNQ",
+  "chennai": "MAA",
+  "hyderabad": "HYD",
+  "ahmedabad": "AMD",
+  "amritsar": "ATQ",
+  "jaipur": "JAI",
+  "udaipur": "UDR",
+  "kochi": "COK",
+  "trivandrum": "TRV",
+  "guwahati": "GAU",
+  "patna": "PAT",
+  "lucknow": "LKO",
+  "varanasi": "VNS",
+  "agra": "AGR",
+  "chandigarh": "IXC",
+  "ranchi": "IXR",
+  "bhubaneswar": "BBI",
+  "visakhapatnam": "VTZ",
+  "dehradun": "DED",
+  "jammu": "IXJ",
+  "jodhpur": "JDH",
+  "surat": "STV",
+  "vadodara": "BDQ",
+  "rajkot": "RAJ",
+  "bhopal": "BHO",
+  "indore": "IDR",
+  "nagpur": "NAG",
+  "nashik": "ISK",
+  "aurangabad": "IXU",
+  "coimbatore": "CJB",
+  "madurai": "IXM",
+  "trichy": "TRZ",
+  "shillong": "SHL",
+  "itanagar": "HGI",
+  "dibrugarh": "DIB",
+  "silchar": "IXS",
+  "jorhat": "JRH",
+  "gaya": "GAY",
+  "darbhanga": "DBG",
+  "raipur": "RPR",
+  "bilaspur": "PBF",
+  "panaji": "GOI",
+  "vasco da gama": "GOI",
+  "dabolim": "GOI",
+  "margao": "GOI",
+  "bhavnagar": "BHU",
+  "jamnagar": "JGA",
+  "gurgaon": "DEL",
+  "faridabad": "DEL",
+  "ambala": "IXC",
+  "shimla": "SLV",
+  "kullu": "KUU",
+  "dharamshala": "DHM",
+  "jamshedpur": "IXW",
+  "dhanbad": "IXR",
+  "mangalore": "IXE",
+  "mysore": "MYQ",
+  "hubli": "HBX",
+  "belgaum": "IXG",
+  "kozhikode": "CCJ",
+  "kannur": "CNN",
+  "gwalior": "GWL",
+  "jabalpur": "JLR",
+  "shirdi": "SAG",
+  "imphal": "IMF",
+  "aizawl": "AJL",
+  "dimapur": "DMU",
+  "kohima": "DMU",
+  "jharsuguda": "JRG",
+  "ludhiana": "LUH",
+  "jalandhar": "AIP",
+  "pathankot": "IXP",
+  "bikaner": "BKB",
+  "ajmer": "KQG",
+  "kota": "KTU",
+  "gangtok": "PYG",
+  "salem": "SXV",
+  "tuticorin": "TCR",
+  "warangal": "WGC",
+  "agartala": "IXA",
+  "kanpur": "KNU",
+  "prayagraj": "IXD",
+  "gorakhpur": "GOP",
+  "bareilly": "BEK",
+  "pantnagar": "PGH",
+  "siliguri": "IXB",
+  "durgapur": "RDP",
+  "bagdogra": "IXB"
+};
+
+function getIataCode(city) {
+  if (!city) return 'UNK';
+  const clean = city.trim().toLowerCase();
+  return CITY_TO_IATA[clean] || clean.substring(0, 3).toUpperCase();
+}
+
 // Start session handler: Intercepts to assign thread ownership
 app.post('/api/start', authenticateToken, async (req, res, next) => {
   const { prompt, trip_details } = req.body;
@@ -459,8 +564,11 @@ app.post('/api/start', authenticateToken, async (req, res, next) => {
     req.body.thread_id = threadId;
   }
 
+  const origin = trip_details?.origin || 'Unknown';
   const destination = trip_details?.destination || 'Unknown';
-  const title = `Trip to ${destination.charAt(0).toUpperCase() + destination.slice(1)}`;
+  const originCode = getIataCode(origin);
+  const destCode = getIataCode(destination);
+  const title = `${originCode} ➔ ${destCode}`;
 
   try {
     // Save thread mapping to user
@@ -476,8 +584,75 @@ app.post('/api/start', authenticateToken, async (req, res, next) => {
   }
 });
 
+// Get all generated itineraries for the user
+app.get('/api/itineraries', authenticateToken, async (req, res) => {
+  try {
+    // 1. Get all threads owned by this user
+    const dbResult = await query(
+      'SELECT thread_id AS id, title, updated_at FROM user_threads WHERE user_id = $1 ORDER BY updated_at DESC',
+      [req.user.id]
+    );
+    const threads = dbResult.rows;
+    if (threads.length === 0) {
+      return res.json({ itineraries: [] });
+    }
+    
+    const threadIds = threads.map(t => t.id);
+    
+    // 2. Call Flask bulk API
+    const response = await fetch(`${FLASK_URL}/api/itineraries/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thread_ids: threadIds })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Flask bulk itineraries returned status ${response.status}`);
+    }
+    
+    const flaskData = await response.json();
+    
+    // 3. Merge title and updated_at from database
+    const itineraries = flaskData.itineraries.map(item => {
+      const dbThread = threads.find(t => t.id === item.thread_id);
+      return {
+        ...item,
+        title: dbThread ? dbThread.title : 'Trip Plan',
+        updated_at: dbThread ? dbThread.updated_at : null
+      };
+    });
+    
+    res.json({ itineraries });
+  } catch (error) {
+    console.error('Failed to fetch user itineraries:', error);
+    res.status(500).json({ error: 'Internal server error fetching itineraries' });
+  }
+});
+
+// Delete a thread/itinerary
+app.delete('/api/threads/:thread_id', authenticateToken, checkThreadOwnership, async (req, res) => {
+  const threadId = req.params.thread_id;
+  try {
+    // 1. Delete mapping from user_threads
+    await query('DELETE FROM user_threads WHERE user_id = $1 AND thread_id = $2', [req.user.id, threadId]);
+    
+    // 2. Notify Flask to delete checkpoints
+    try {
+      await fetch(`${FLASK_URL}/api/threads/${threadId}`, { method: 'DELETE' });
+    } catch (flaskErr) {
+      console.warn(`Failed to notify Flask of thread deletion for ${threadId}:`, flaskErr);
+    }
+    
+    res.json({ success: true, message: 'Itinerary deleted successfully' });
+  } catch (error) {
+    console.error('Failed to delete thread:', error);
+    res.status(500).json({ error: 'Internal server error deleting thread' });
+  }
+});
+
 // Proxy handler for authenticated Python graph operations
 app.use('/api', authenticateToken, (req, res, next) => {
+
   // If request contains thread_id in URL param or path (like /api/stream/:thread_id or /api/threads/:thread_id)
   // we check ownership.
   const pathParts = req.path.split('/');

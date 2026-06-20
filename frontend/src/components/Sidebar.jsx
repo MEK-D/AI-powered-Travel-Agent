@@ -56,15 +56,22 @@ const s = {
     border: active ? '1px solid rgba(85,107,47,0.3)' : '1px solid transparent',
     color: active ? '#fff' : '#94a3b8', fontSize: '.78rem', transition: 'all .25s cubic-bezier(0.4, 0, 0.2, 1)',
     display: 'flex', alignItems: 'center', gap: 12,
+    justifyContent: 'space-between',
     '&:hover': { background: 'rgba(255,255,255,0.03)', transform: 'translateX(4px)' }
   }),
 }
 
 export default function Sidebar({ 
   agents, agentStates, logs, disabled, status,
-  threadList, activeThreadId, onSelectThread, onNewChat 
+  threadList, activeThreadId, onSelectThread, onNewChat,
+  onDeleteThread
 }) {
   const logRef = useRef(null)
+
+  const handleDeleteClick = (e, tid) => {
+    e.stopPropagation(); // Avoid selecting the thread when clicking delete
+    onDeleteThread(tid);
+  };
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -106,13 +113,38 @@ export default function Sidebar({
                 style={s.historyItem(t.id === activeThreadId)}
                 onClick={() => onSelectThread(t.id)}
               >
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', 
-                  background: t.id === activeThreadId ? '#556B2F' : 'rgba(255,255,255,0.1)'
-                }} />
-                <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight: t.id === activeThreadId ? 600 : 400}}>
-                   Plan {t.id.substring(0, 8)}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', flex: 1 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: t.id === activeThreadId ? '#556B2F' : 'rgba(255,255,255,0.1)'
+                  }} />
+                  <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight: t.id === activeThreadId ? 600 : 400}}>
+                     {t.title || `Plan ${t.id.substring(0, 8)}`}
+                  </span>
+                </div>
+                <button 
+                  onClick={(e) => handleDeleteClick(e, t.id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#fca5a5',
+                    cursor: 'pointer',
+                    opacity: 0.4,
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '2px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s',
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.4; e.currentTarget.style.background = 'none' }}
+                  title="Delete Plan"
+                >
+                  🗑️
+                </button>
               </motion.div>
             ))}
           </AnimatePresence>
