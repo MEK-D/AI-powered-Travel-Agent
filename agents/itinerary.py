@@ -57,7 +57,7 @@ def itinerary_agent(state: TripState) -> dict:
     h_info = "No hotel"
     if hotels and "error" not in hotels[0]:
         h = hotels[0]
-        gps = h.get('gps_coordinates', {})
+        gps = h.get('gps_coordinates') or {}
         nearby = h.get('nearby_places', [])
         
         # Enhanced formatting for the final plan

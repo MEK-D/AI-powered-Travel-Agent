@@ -7,10 +7,11 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests, uuid
+import json, os, uuid
 from datetime import datetime
 import langchain
 from telemetry import TelemetryManager, TelemetryCallbackHandler
+from travel_mcp.client.tool_loader import invoke_tool
 
 class DailyWeather(BaseModel):
     date: str = Field(description="Date of the forecast (YYYY-MM-DD).")
@@ -26,7 +27,7 @@ class WeatherForecast(BaseModel):
 
 def weather_agent(state: dict) -> dict:
     tm = TelemetryManager("weather_agent")
-    tm.info("🌦 Weather Agent: Fetching forecast from Visual Crossing API...")
+    tm.info("🌦 Weather Agent: Fetching forecast via MCP...")
     callback = TelemetryCallbackHandler(tm)
 
     trip = state.get("trip_details", {})
@@ -49,27 +50,17 @@ def weather_agent(state: dict) -> dict:
         if human_feedback else ""
     )
     
-    api_key = os.getenv("VISUAL_CROSSING_API_KEY")
-
-    if not api_key:
-        msg = "⚠️ Missing VISUAL_CROSSING_API_KEY in environment."
-        tm.warning(msg)
-        return {"scraped_data": {"weather": [{"error": msg}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
-
-    # --- STEP 1: Fetch Raw Data from Visual Crossing ---
+    # --- STEP 1: Fetch via MCP get_weather_forecast tool ---
     try:
-        # Visual Crossing Timeline API takes location/start_date/end_date natively
-        url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{dest_city}/{start_date}/{end_date}"
-        params = {
-            "unitGroup": unit_group,
-            "key": api_key,
-            "contentType": "json"
-        }
         tm.info(f"🌦 Weather Search: Fetching {unit_group} forecast for {dest_city} ({start_date} to {end_date})", city=dest_city, units=unit_group)
-        resp = requests.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        raw_weather_data = resp.json().get("days", [])
-        tm.info(f"📡 API Data Received: Retrieved {len(raw_weather_data)} days of weather data from Visual Crossing.", raw_count=len(raw_weather_data))
+        weather_data = invoke_tool("get_weather_forecast", {
+            "dest_city": dest_city,
+            "start_date": start_date,
+            "end_date": end_date,
+            "unit_group": unit_group,
+        })
+        raw_weather_data = weather_data.get("days", [])
+        tm.info(f"📡 MCP weather data: Retrieved {len(raw_weather_data)} days of forecast.", raw_count=len(raw_weather_data))
     except Exception as e:
         tm.error(f"❌ Weather API error: {e}")
         return {"scraped_data": {"weather": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}

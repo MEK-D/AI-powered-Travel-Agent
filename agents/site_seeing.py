@@ -5,8 +5,9 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests, uuid
+import json, os, uuid
 from telemetry import TelemetryManager, TelemetryCallbackHandler
+from travel_mcp.client.tool_loader import invoke_tool
 
 load_dotenv()
 
@@ -39,11 +40,10 @@ def site_seeing_agent(state: dict) -> dict:
     hotel_name = ""
     if hotels and isinstance(hotels[0], dict):
         hotel_name = hotels[0].get("name", "")
-        gps = hotels[0].get("gps_coordinates", {})
+        gps = hotels[0].get("gps_coordinates") or {}
         lat = gps.get("latitude")
         lng = gps.get("longitude")
 
-    serpapi_key = os.getenv("SERPAPI_KEY")
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
 
     # ── Human feedback from previous HITL interrupt ──────────────────────────
@@ -59,19 +59,14 @@ def site_seeing_agent(state: dict) -> dict:
         if hotel_name:
             query = f"top attractions near {hotel_name} {dest_city}"
         
-        tm.info(f"🏛️ Attraction Search: Querying Google Maps for '{query}'", query=query)
-        params = {
-            "engine": "google_maps",
-            "type": "search",
-            "q": query,
-            "api_key": serpapi_key
-        }
-        if lat and lng:
-            params["ll"] = f"@{lat},{lng},14z"
-
-        response = requests.get("https://serpapi.com/search", params=params, timeout=15)
-        results = response.json().get("local_results", [])[:10]
-        tm.info(f"📡 SerpApi Data Received: Found {len(results)} potential landmarks to evaluate.", raw_count=len(results))
+        tm.info(f"🏛️ Attraction Search: Querying via MCP for '{query}'", query=query)
+        attraction_data = invoke_tool("search_attractions", {
+            "query": query,
+            "lat": lat or 0.0,
+            "lng": lng or 0.0,
+        })
+        results = (attraction_data.get("local_results", []) or [])[:10]
+        tm.info(f"📡 MCP attraction data: Found {len(results)} potential landmarks to evaluate.", raw_count=len(results))
 
         if not results:
             tm.warning("⚠️ No sites found via Google Maps.")

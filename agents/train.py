@@ -7,10 +7,11 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests, uuid
+import json, os, uuid
 from datetime import datetime
 import langchain
 from telemetry import TelemetryManager, TelemetryCallbackHandler
+from travel_mcp.client.tool_loader import invoke_tool
 
 class SelectedTrain(BaseModel):
     train_name: str = Field(description="Name or number of the train")
@@ -44,7 +45,6 @@ def train_agent(state: dict) -> dict:
     seat_class      = task.get("seat_class", "standard")
     train_type      = task.get("train_type", "standard")
 
-    rapidapi_key = os.getenv("RAPIDAPI_KEY")
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
 
     tm.info(f"🚆 Route: {origin_city} → {dest_city} on {start_date} | Pref: {time_preference}, {seat_class} class")
@@ -71,22 +71,15 @@ def train_agent(state: dict) -> dict:
         tm.error(f"❌ Station code lookup failed: {e}")
         return {"scraped_data": {"trains": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}
 
-    # --- STEP 2: Fetch ALL available trains ---
+    # --- STEP 2: Fetch ALL available trains via MCP ---
     try:
-        url = "https://irctc1.p.rapidapi.com/api/v3/trainBetweenStations"
-        querystring = {
-            "fromStationCode": origin_code,
-            "toStationCode":   dest_code,
-            "dateOfJourney":   start_date,
-        }
-        headers = {
-            "X-RapidAPI-Key":  rapidapi_key,
-            "X-RapidAPI-Host": "irctc1.p.rapidapi.com",
-        }
-        response = requests.get(url, headers=headers, params=querystring, timeout=20)
-        response.raise_for_status()
-        raw_trains = response.json().get("data", [])
-        tm.info(f"📡 RapidAPI Data Received: Found {len(raw_trains)} available train routes for this date.", 
+        train_data = invoke_tool("search_trains", {
+            "origin_code": origin_code,
+            "dest_code": dest_code,
+            "date_of_journey": start_date,
+        })
+        raw_trains = train_data.get("data", [])
+        tm.info(f"📡 MCP train data: Found {len(raw_trains)} available train routes for this date.",
                 raw_count=len(raw_trains))
     except Exception as e:
         tm.error(f"❌ Train API error: {e}")
@@ -148,19 +141,20 @@ def train_agent(state: dict) -> dict:
         train_number = t.get("train_number")
         if train_number:
             try:
-                fare_url = "https://irctc1.p.rapidapi.com/api/v1/getFare"
-                fare_qs = {"trainNo": train_number, "fromStationCode": origin_code, "toStationCode": dest_code}
-                fare_resp = requests.get(fare_url, headers=headers, params=fare_qs, timeout=10)
-                
-                if fare_resp.status_code == 200:
-                    f_json = fare_resp.json()
-                    f_data = f_json.get("data", [])
-                    
+                fare_json = invoke_tool("get_train_fare", {
+                    "train_number": train_number,
+                    "origin_code": origin_code,
+                    "dest_code": dest_code,
+                })
+                if fare_json:
+                    f_data = fare_json.get("data", [])
+
                     if isinstance(f_data, list):
                         for f_item in f_data:
                             c_type = f_item.get("classType", f_item.get("enqClass"))
                             f_amt = f_item.get("fare", f_item.get("totalFare", 0))
-                            if c_type: fare_data[c_type] = float(f_amt)
+                            if c_type:
+                                fare_data[c_type] = float(f_amt)
                     elif isinstance(f_data, dict):
                         for cls_key, cls_val in f_data.items():
                             if isinstance(cls_val, dict) and "totalFare" in cls_val:

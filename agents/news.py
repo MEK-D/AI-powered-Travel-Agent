@@ -7,10 +7,11 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests, uuid
+import json, os, uuid
 from datetime import datetime
 import langchain
 from telemetry import TelemetryManager, TelemetryCallbackHandler
+from travel_mcp.client.tool_loader import invoke_tool
 
 class TravelNewsItem(BaseModel):
     headline: str = Field(description="The exact news headline")
@@ -27,7 +28,6 @@ def news_agent(state: dict) -> dict:
 
     trip = state.get("trip_details", {})
     dest_city = trip.get("destination", "Unknown")
-    serpapi_key = os.getenv("SERPAPI_KEY")
 
     # ── Human feedback from previous HITL interrupt ──────────────────────────
     human_feedback = state.get("human_feedback", "").strip()
@@ -40,20 +40,11 @@ def news_agent(state: dict) -> dict:
     query = f"{dest_city} (travel OR tourism OR strike OR weather OR festival OR event)"
     tm.info(f"📰 News Search: Querying Google News for {dest_city} travel impacts...", query=query)
 
-    # --- STEP 1: Fetch Google News Data via SerpApi ---
+    # --- STEP 1: Fetch via MCP search_travel_news tool ---
     try:
-        query = f"{dest_city} (travel OR tourism OR strike OR weather OR festival OR event)"
-        params = {
-            "engine":  "google_news",
-            "q":       query,
-            "gl":      "us",
-            "hl":      "en",
-            "api_key": serpapi_key,
-        }
-        response = requests.get("https://serpapi.com/search", params=params, timeout=20)
-        response.raise_for_status()
-        raw_news = response.json().get("news_results", [])
-        tm.info(f"📡 SerpApi Data Received: Found {len(raw_news)} raw news articles.", raw_count=len(raw_news))
+        news_data = invoke_tool("search_travel_news", {"dest_city": dest_city})
+        raw_news = news_data.get("news_results", [])
+        tm.info(f"📡 MCP news data: Found {len(raw_news)} raw news articles.", raw_count=len(raw_news))
     except Exception as e:
         tm.error(f"❌ Failed to fetch SerpApi News data: {e}")
         return {"scraped_data": {"news": ["Could not fetch local news."]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}

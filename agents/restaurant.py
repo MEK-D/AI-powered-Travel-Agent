@@ -7,10 +7,11 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests, uuid
+import json, os, uuid
 from datetime import datetime
 import langchain
 from telemetry import TelemetryManager, TelemetryCallbackHandler
+from travel_mcp.client.tool_loader import invoke_tool
 
 class SelectedRestaurant(BaseModel):
     restaurant_name: str
@@ -45,11 +46,14 @@ def restaurant_agent(state: dict) -> dict:
         # Take the first selected hotel's info
         target_hotel = hotel_data[0]
         search_location = f"restaurants near {target_hotel.get('name')}"
-        gps = target_hotel.get("gps_coordinates", {})
-        lat_long = f"@{gps.get('latitude')},{gps.get('longitude')},15z" # 15z is zoom level
-        tm.info(f"🍴 Context: Anchoring search to {target_hotel.get('name')} at coordinates {gps.get('latitude')}, {gps.get('longitude')}")
+        gps = target_hotel.get("gps_coordinates") or {}
+        lat_long = f"@{gps.get('latitude')},{gps.get('longitude')},15z" if gps.get('latitude') and gps.get('longitude') else None
+        if lat_long:
+            tm.info(f"🍴 Context: Anchoring search to {target_hotel.get('name')} at coordinates {gps.get('latitude')}, {gps.get('longitude')}")
+        else:
+            tm.warning("⚠️ Hotel GPS not available, falling back to city search.")
+            search_location = state.get("trip_details", {}).get("destination", "Unknown")
 
-    serpapi_key = os.getenv("SERPAPI_KEY")
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
 
     # ── Human feedback from previous HITL interrupt ──────────────────────────
@@ -60,25 +64,14 @@ def restaurant_agent(state: dict) -> dict:
         if human_feedback else ""
     )
 
-    # 2. SerpApi Google Maps Search
+    # 2. MCP: search_restaurants tool
     try:
-        params = {
-            "engine": "google_maps",
-            "q": "best restaurants",
-            "ll": lat_long, # Anchors search to Hotel GPS
-            "type": "search",
-            "api_key":serpapi_key,
-        }
-        
-        # If no GPS, we fallback to a text search
-        if not lat_long:
-            params["engine"] = "google_local"
-            params["q"] = f"best restaurants in {search_location}"
-
-        resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
-        resp.raise_for_status()
-        raw_results = resp.json().get("local_results", [])
-        tm.info(f"📡 SerpApi Data Received: Found {len(raw_results)} local dining options nearby.", raw_count=len(raw_results))
+        restaurant_data = invoke_tool("search_restaurants", {
+            "search_location": search_location,
+            "lat_long": lat_long or "",
+        })
+        raw_results = restaurant_data.get("local_results", [])
+        tm.info(f"📡 MCP restaurant data: Found {len(raw_results)} local dining options nearby.", raw_count=len(raw_results))
     except Exception as e:
         tm.error(f"❌ Restaurant API error: {e}")
         return {"scraped_data": {"restaurants": [{"error": str(e)}]}, "status_log": [e.message for e in tm.entries], "telemetry": tm.get_entries()}

@@ -7,10 +7,11 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests, uuid
+import json, os, uuid
 from datetime import datetime
 import langchain
 from telemetry import TelemetryManager, TelemetryCallbackHandler
+from travel_mcp.client.tool_loader import invoke_tool
 
 class SelectedHotel(BaseModel):
     hotel_name: str
@@ -29,7 +30,7 @@ class HotelSelection(BaseModel):
 
 def hotel_agent(state: dict) -> dict:
     tm = TelemetryManager("hotel_agent")
-    tm.info("🏨 Hotel Agent: Starting SerpApi Google Hotels search...")
+    tm.info("🏨 Hotel Agent: Starting MCP Google Hotels search...")
 
     trip        = state.get("trip_details", {})
     task        = state.get("agent_tasks", {}).get("hotel_agent", {})
@@ -38,7 +39,6 @@ def hotel_agent(state: dict) -> dict:
     check_out   = trip.get("end_date")
     travelers   = trip.get("number_of_travelers", 1)
     vibe        = task.get("vibe_preference", "standard")
-    serpapi_key = os.getenv("SERPAPI_KEY")
 
     # ── Human feedback from previous HITL interrupt ──────────────────────────
     human_feedback = state.get("human_feedback", "").strip()
@@ -49,21 +49,15 @@ def hotel_agent(state: dict) -> dict:
     )
 
     try:
-        params = {
-            "engine":         "google_hotels",
-            "q":              dest_city,
-            "check_in_date":  check_in,
-            "check_out_date": check_out,
-            "adults":         travelers,
-            "currency":       "USD",
-            "hl":             "en",
-            "api_key":        serpapi_key,
-        }
         tm.info(f"🏨 Hotel Search: Looking for properties in {dest_city} ({check_in} to {check_out}) for {travelers} travelers.")
-        resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
-        resp.raise_for_status()
-        raw_hotels = resp.json().get("properties", [])
-        tm.info(f"📡 SerpApi Data Received: Found {len(raw_hotels)} properties in the {dest_city} area.", 
+        hotel_data = invoke_tool("search_hotels", {
+            "dest_city": dest_city,
+            "check_in": check_in,
+            "check_out": check_out,
+            "travelers": travelers,
+        })
+        raw_hotels = hotel_data.get("properties", [])
+        tm.info(f"📡 MCP hotel data: Found {len(raw_hotels)} properties in the {dest_city} area.",
                 raw_count=len(raw_hotels), city=dest_city)
     except Exception as e:
         tm.error(f"❌ Hotel API error: {e}")

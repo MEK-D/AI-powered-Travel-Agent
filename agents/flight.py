@@ -7,10 +7,11 @@ from langchain_cohere import ChatCohere
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import json, os, requests, uuid
+import json, os, uuid
 from datetime import datetime
 import langchain
 from telemetry import TelemetryManager, TelemetryCallbackHandler
+from travel_mcp.client.tool_loader import invoke_tool
 
 
 
@@ -28,7 +29,7 @@ class FlightSelection(BaseModel):
 
 def flight_agent(state: dict) -> dict:
     tm = TelemetryManager("flight_agent")
-    tm.info("✈️ Flight Agent: Starting SerpApi Google Flights search...")
+    tm.info("✈️ Flight Agent: Starting MCP Google Flights search...")
 
     trip  = state.get("trip_details", {})
     task  = state.get("agent_tasks", {} ).get("flight_agent", {})
@@ -47,7 +48,6 @@ def flight_agent(state: dict) -> dict:
     )
 
     llm = ChatCohere(model="command-r-08-2024", temperature=0)
-    serpapi_key = os.getenv("SERPAPI_KEY")
 
     # IATA codes
     try:
@@ -62,28 +62,19 @@ def flight_agent(state: dict) -> dict:
 
     tm.info(f"✈️ Route Identification: Using IATA codes {origin_iata} and {dest_iata}", origin=origin_city, dest=dest_city)
 
-    # SerpApi
+    # MCP: search_flights tool
     try:
-        is_rt = bool(end_date)
-        params = {
-            "engine":        "google_flights",
-            "departure_id":  origin_iata,
-            "arrival_id":    dest_iata,
-            "outbound_date": start_date,
-            "currency":      "USD",
-            "hl":            "en",
-            "api_key":       serpapi_key,
-            "type":          "1" if is_rt else "2",
-        }
-        if is_rt:
-            params["return_date"] = end_date
-        resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
-        resp.raise_for_status()
-        best_flights = resp.json().get("best_flights", []) or []
-        other_flights = resp.json().get("other_flights", []) or []
+        flight_data = invoke_tool("search_flights", {
+            "origin_iata": origin_iata,
+            "dest_iata": dest_iata,
+            "start_date": start_date,
+            "end_date": end_date or "",
+        })
+        best_flights = flight_data.get("best_flights", []) or []
+        other_flights = flight_data.get("other_flights", []) or []
         raw = best_flights + other_flights
-        
-        tm.info(f"📡 SerpApi Data Received: Found {len(best_flights)} best and {len(other_flights)} other flight options.", 
+
+        tm.info(f"📡 MCP flight data: Found {len(best_flights)} best and {len(other_flights)} other flight options.",
                 total_raw=len(raw), best_count=len(best_flights), other_count=len(other_flights))
     except Exception as e:
         tm.error(f"❌ Flight API error: {e}")
