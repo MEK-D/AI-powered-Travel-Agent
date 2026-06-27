@@ -6,6 +6,7 @@ import MainPanel from './components/MainPanel'
 import Auth from './components/Auth'
 import { useAgentStream } from './hooks/useAgentStream'
 import ProfilePage from './components/ProfilePage'
+import { buildTripPrompt } from './utils/tripPrompt'
 
 
 
@@ -137,14 +138,15 @@ export default function App() {
   }, [refreshToken, handleTokenRefresh, reset])
 
   const handleStart = useCallback(async (promptVal, tripDetails) => {
-    if (!promptVal.trim()) return
+    const prompt = buildTripPrompt(promptVal, tripDetails)
+    if (!prompt) return
     reset()
     setSelectedFlight(null)
     setSelectedHotel(null)
     setCurrentTrip(tripDetails)
     setBookingStatus({ transport: 'idle', hotel: 'idle' })
     setActiveTab(0)
-    await startSession(promptVal, tripDetails)
+    await startSession(prompt, tripDetails)
   }, [startSession, reset])
 
   const handleApprove = useCallback(async (phase) => {

@@ -200,11 +200,11 @@ export default function TripForm({ onStart }) {
       </div>
 
       <div style={s.group}>
-        <label style={s.label}>Special Requirements / Prompt</label>
+        <label style={s.label}>Special Requirements / Prompt (optional)</label>
         <textarea
           style={{ ...s.input, height: 80, width: '100%', resize: 'none' }}
           name="prompt"
-          placeholder="e.g. I want to try Kashmiri cuisine and visit the Dal Lake..."
+          placeholder="Optional — leave blank to plan from your trip details above, or add preferences like Kashmiri cuisine and Dal Lake..."
           value={formData.prompt}
           onChange={handleChange}
         />

@@ -26,7 +26,7 @@ const readResponse = async (res) => {
   }
   const text = await res.text();
   if (text.includes('<!DOCTYPE') || text.includes('<!doctype') || text.includes('<html')) {
-    throw new Error('Unexpected HTML response. Is the Express auth gateway running on port 5000?');
+    throw new Error('Unexpected HTML response. Is the Express auth gateway running on port 5002?');
   }
   throw new Error(text || `Request failed with status ${res.status}`);
 };
