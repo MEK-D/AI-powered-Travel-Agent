@@ -9,3 +9,5 @@ python-dotenv==1.2.2
 requests==2.33.1
 cohere==5.21.1
 pydantic==2.12.5
+mcp>=1.0.0
+langchain-mcp-adapters>=0.1.0
