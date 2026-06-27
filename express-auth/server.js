@@ -9,7 +9,7 @@ const { initDb, query } = require('./db');
 require('dotenv').config({ path: '../.env' }); // Load from root .env
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 const FLASK_URL = process.env.FLASK_SERVER_URL || 'http://localhost:5001';
 
 // Initialize Database Tables

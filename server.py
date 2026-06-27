@@ -193,6 +193,14 @@ def start():
             "number_of_travelers": 1,
             "total_budget":        500.0,
         }
+    if not user_prompt and trip_details:
+        td = trip_details
+        user_prompt = (
+            f"Plan a trip from {td.get('origin', 'Unknown')} to {td.get('destination', 'Unknown')}, "
+            f"departing {td.get('start_date', '')} and returning {td.get('end_date', '')}, "
+            f"for {td.get('number_of_travelers', 1)} travelers "
+            f"with a total budget of ${td.get('total_budget', 0)}."
+        )
     if not user_prompt:
         return jsonify({"error": "prompt required"}), 400
 
