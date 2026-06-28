@@ -107,12 +107,7 @@ async function sendOtpEmail(email, otp, purpose) {
         to: email,
         subject,
         text,
-        html,
-        attachments: [{
-          filename: 'travelease_logo.png',
-          path: 'c:/Users/HP/Desktop/AI-powered-Travel-Agent/frontend/public/travelease_logo.png',
-          cid: 'logo'
-        }]
+        html
       });
       console.log(`Email sent successfully to ${email}`);
       return true;
