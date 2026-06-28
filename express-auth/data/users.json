@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "email": "krishnanimesh878@gmail.com",
+    "password_hash": "$2a$10$QpxvD5pctlgcg4WYPWRLL.bo68Dk4jKoYNYmXO.Kt3v3AdQwIWyU.",
+    "is_verified": true,
+    "otp": null,
+    "otp_expiry": null,
+    "created_at": "2026-06-27T17:20:17.638Z"
+  }
+]

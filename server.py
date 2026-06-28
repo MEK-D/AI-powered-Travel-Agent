@@ -5,6 +5,9 @@ Streams real-time agent events; handles 5-phase HITL via Command(resume=...).
 from flask import Flask, Response, request, jsonify, send_from_directory
 from test import get_compiled_graph
 import json, threading, queue, uuid, os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Try to import PostgreSQL checkpointer, fallback to memory
 try:
@@ -54,11 +57,15 @@ flask_app = Flask(__name__, static_folder="static")
 # Setup checkpointer
 if USE_POSTGRES:
     try:
-        DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
+        DB_URI = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/travel_agent")
+        # Build connection kwargs — add sslmode for cloud databases (Neon, Supabase, etc.)
+        conn_kwargs = {"autocommit": True, "prepare_threshold": 0, "connect_timeout": 5}
+        if "sslmode=require" in DB_URI or "neon.tech" in DB_URI:
+            conn_kwargs["sslmode"] = "require"
         connection_pool = ConnectionPool(
             conninfo=DB_URI,
             max_size=20,
-            kwargs={"autocommit": True, "prepare_threshold": 0},
+            kwargs=conn_kwargs,
         )
         checkpointer = PostgresSaver(connection_pool)
         checkpointer.setup()

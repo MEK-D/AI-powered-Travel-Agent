@@ -13,7 +13,10 @@ At each phase the user can:
 from __future__ import annotations
 from test import get_compiled_graph
 from langgraph.types import Command
-import json, sys
+import json, sys, os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Try Postgres; fall back to in-memory if Docker isn't running
 try:
@@ -23,7 +26,7 @@ except Exception:
     _use_postgres = False
 
 
-DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
+DB_URI = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/travel_agent")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

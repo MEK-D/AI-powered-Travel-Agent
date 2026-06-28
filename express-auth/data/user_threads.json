@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "user_id": 1,
+    "thread_id": "eca2fa85-3ad3-4cf4-8373-a9570249aa0c",
+    "title": "BOM ➔ SXR",
+    "created_at": "2026-06-27T17:22:10.170Z",
+    "updated_at": "2026-06-27T17:22:10.170Z"
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "thread_id": "3930b8e4-1039-42ac-a8bb-cd66eef4269b",
+    "title": "AGR ➔ ATQ",
+    "created_at": "2026-06-27T17:24:47.470Z",
+    "updated_at": "2026-06-27T17:24:47.470Z"
+  }
+]

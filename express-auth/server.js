@@ -437,7 +437,7 @@ app.use(express.json());
 app.get('/api/threads', authenticateToken, async (req, res) => {
   try {
     const dbResult = await query(
-      'SELECT thread_id AS id, title, updated_at FROM user_threads WHERE user_id = $1 ORDER BY updated_at DESC',
+      'SELECT thread_id AS id, title, trip_details, updated_at FROM user_threads WHERE user_id = $1 ORDER BY updated_at DESC',
       [req.user.id]
     );
     res.json({ threads: dbResult.rows });
@@ -571,10 +571,10 @@ app.post('/api/start', authenticateToken, async (req, res, next) => {
   const title = `${originCode} ➔ ${destCode}`;
 
   try {
-    // Save thread mapping to user
+    // Save thread mapping to user with trip details
     await query(
-      'INSERT INTO user_threads (user_id, thread_id, title) VALUES ($1, $2, $3) ON CONFLICT (thread_id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP',
-      [req.user.id, threadId, title]
+      'INSERT INTO user_threads (user_id, thread_id, title, trip_details) VALUES ($1, $2, $3, $4) ON CONFLICT (thread_id) DO UPDATE SET title = EXCLUDED.title, trip_details = EXCLUDED.trip_details, updated_at = CURRENT_TIMESTAMP',
+      [req.user.id, threadId, title, JSON.stringify(trip_details || {})]
     );
     console.log(`Saved thread mapping: user=${req.user.id}, thread=${threadId}, title=${title}`);
     next(); // Hand off to proxy
@@ -589,7 +589,7 @@ app.get('/api/itineraries', authenticateToken, async (req, res) => {
   try {
     // 1. Get all threads owned by this user
     const dbResult = await query(
-      'SELECT thread_id AS id, title, updated_at FROM user_threads WHERE user_id = $1 ORDER BY updated_at DESC',
+      'SELECT thread_id AS id, title, trip_details, updated_at FROM user_threads WHERE user_id = $1 ORDER BY updated_at DESC',
       [req.user.id]
     );
     const threads = dbResult.rows;
@@ -612,12 +612,13 @@ app.get('/api/itineraries', authenticateToken, async (req, res) => {
     
     const flaskData = await response.json();
     
-    // 3. Merge title and updated_at from database
+    // 3. Merge title, trip_details, and updated_at from database
     const itineraries = flaskData.itineraries.map(item => {
       const dbThread = threads.find(t => t.id === item.thread_id);
       return {
         ...item,
         title: dbThread ? dbThread.title : 'Trip Plan',
+        trip_details: dbThread ? dbThread.trip_details : (item.trip_details || {}),
         updated_at: dbThread ? dbThread.updated_at : null
       };
     });

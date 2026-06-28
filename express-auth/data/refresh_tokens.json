@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "user_id": 1,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJrcmlzaG5hbmltZXNoODc4QGdtYWlsLmNvbSIsImp0aSI6ImJmOTI5MGI1LTY5ZTYtNDU0ZC05N2E2LTkxYjczZDYzYmMyNCIsImlhdCI6MTc4MjU4MDkxNywiZXhwIjoxNzgzMTg1NzE3fQ.I90wGiDQuvGgR0PmlEuY9YNqMpPqotfcfdsHMB-YuU0",
+    "expires_at": "2026-07-04T17:21:57.457Z",
+    "created_at": "2026-06-27T17:21:57.458Z"
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJrcmlzaG5hbmltZXNoODc4QGdtYWlsLmNvbSIsImp0aSI6ImQxMTM4YzgyLTBmOTQtNDk4Ny04NTliLTNhMTFhMzU3YjRhMyIsImlhdCI6MTc4MjYzMzE5MCwiZXhwIjoxNzgzMjM3OTkwfQ.D1uK6tqbyxHpOmvheAEjEGdGc9egwyCUimWRwBHOtio",
+    "expires_at": "2026-07-05T07:53:10.750Z",
+    "created_at": "2026-06-28T07:53:10.750Z"
+  }
+]

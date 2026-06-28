@@ -3,10 +3,13 @@ test_auto.py — Automated end-to-end test (auto-approves all phases).
 Uses LangGraph streaming + MemorySaver interrupt/resume.
 """
 from test import get_compiled_graph
-import json
+import json, os
+from dotenv import load_dotenv
 from langgraph.checkpoint.postgres import PostgresSaver
 
-DB_URI = "postgresql://postgres:postgres@localhost:5432/travel_agent"
+load_dotenv()
+
+DB_URI = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/travel_agent")
 
 def pretty_print(data: dict):
     for key, items in data.items():
